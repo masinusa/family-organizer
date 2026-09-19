@@ -54,6 +54,14 @@ don't rewrite — newest entry last in each section.
   real content to check today. Add the app's real language to the matrix
   once a stack ADR picks one — don't assume an empty-language matrix entry
   is harmless.
+- Even after the manual IAP consent-screen setup, the service still
+  returned `Empty Google Account OAuth client ID(s)/secret(s)` — the
+  console's "Auto-generate credentials" option wasn't offered for this
+  project (Sept 2026). Had to create the OAuth client by hand and push it
+  to IAP via `gcloud iap settings set`. See the updated
+  `docs/adr/0002-gcp-cloud-run-iap.md` and README quick start for the exact
+  procedure. The client ID/secret live only in IAP's own settings — never
+  in Terraform, never in this repo.
 
 ## Decisions
 

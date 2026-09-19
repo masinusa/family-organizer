@@ -49,13 +49,36 @@ Then copy the `terraform output` values into GitHub repository **variables**
 used by `deploy.yml`: `GCP_PROJECT_ID`, `GCP_REGION`, `GCP_SERVICE_NAME`,
 `AR_REPO`, `WIF_PROVIDER`, `DEPLOYER_SA`.
 
-**One manual step Terraform can't do:** configure the IAP OAuth consent
-screen once, in the Cloud Console (Security → Identity-Aware Proxy →
-Configure Consent Screen on the `family-hub` service → External audience →
-Auto-generate credentials). Google shut down the API that used to let
-Terraform manage this in March 2026, so it's a one-time click-through — see
-[`docs/adr/0002-gcp-cloud-run-iap.md`](docs/adr/0002-gcp-cloud-run-iap.md).
-Until it's done, IAP will block everyone, including group members.
+**Manual steps Terraform can't do** (Google shut down the API that used to
+let Terraform manage OAuth setup in March 2026 — see
+[`docs/adr/0002-gcp-cloud-run-iap.md`](docs/adr/0002-gcp-cloud-run-iap.md)):
+
+1. Configure the consent screen once, in Cloud Console (Security →
+   Identity-Aware Proxy → the `family-hub` service → Configure Consent
+   Screen → External audience).
+2. "Auto-generate credentials" may not be offered (observed missing in
+   Sept 2026). If so, create the OAuth client by hand: Google Auth Platform
+   → Clients → create a Web application client (e.g. `family-hub-iap`).
+   Once it exists, add the redirect URI IAP requires:
+   `https://iap.googleapis.com/v1/oauth/clientIds/CLIENT_ID:handleRedirect`.
+3. Hand the client ID/secret to IAP directly — this is **not** stored in
+   Terraform or this repo at all. Run locally (never commit the file, and
+   delete it right after):
+   ```bash
+   cat > /tmp/iap-oauth.yaml <<EOF
+   accessSettings:
+     oauthSettings:
+       clientId: CLIENT_ID
+       clientSecret: CLIENT_SECRET
+   EOF
+   gcloud iap settings set /tmp/iap-oauth.yaml \
+     --project=<project-id> --resource-type=cloud-run \
+     --region=<region> --service=<service-name>
+   rm /tmp/iap-oauth.yaml
+   ```
+
+Until this is done, IAP blocks everyone, including group members, with
+`Empty Google Account OAuth client ID(s)/secret(s)`.
 
 Pushes to `main` that touch `app/` build and roll out a new Cloud Run
 revision automatically.

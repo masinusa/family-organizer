@@ -46,10 +46,19 @@ Rationale:
   deprecated by the provider itself. There is no Terraform replacement:
   Google's guidance is to configure the consent screen once, manually, via
   Cloud Console (for this project's case — family members on personal
-  Gmail accounts, not a Workspace org — select "External" audience and
-  "Auto-generate credentials"). This is now a documented one-time manual
-  step in the README quick start, done once per project, before `iap`
-  bindings have any effect. `infra/terraform/iap.tf` has a comment
+  Gmail accounts, not a Workspace org — select "External" audience).
+  **Verified in practice (Sept 2026):** the console's "Auto-generate
+  credentials" option was not offered for this project, so the OAuth
+  client had to be created by hand (Google Auth Platform → Clients → Web
+  application), with the IAP redirect URI
+  (`https://iap.googleapis.com/v1/oauth/clientIds/CLIENT_ID:handleRedirect`)
+  added once the client ID existed. The resulting client ID/secret are
+  **not stored in Terraform or this repo** — they're handed to IAP
+  directly via `gcloud iap settings set <file> --resource-type=cloud-run
+  --region=<region> --service=<service>` from a local, never-committed
+  YAML file, deleted immediately after. This is now the documented
+  procedure in the README quick start, done once per project, before
+  `iap` bindings have any effect. `infra/terraform/iap.tf` has a comment
   explaining this and pointing back here.
 - `google_cloud_run_v2_service_iam_member`/`google_iap_web_cloud_run_service_iam_member`
   remain GA and Terraform-managed as before — only the consent-screen
