@@ -1,0 +1,12 @@
+project_id   = "elevated-server-509103-u5"
+region       = "us-central1"
+service_name = "family-hub"
+ar_repo_name = "family-hub"
+github_repo  = "masinusa/family-organizer"
+
+# Spicer Family group, created 2026-09-18.
+iap_access_group = "spicer-familia@googlegroups.com"
+
+billing_account_id   = "01C980-13952D-CD7E56"
+budget_amount_usd    = 5
+budget_currency_code = "USD"
