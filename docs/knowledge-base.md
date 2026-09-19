@@ -46,6 +46,14 @@ don't rewrite — newest entry last in each section.
   correct, `google_service_account`/`google_iam_workload_identity_pool`
   started failing with `iam.googleapis.com` "not been used in this
   project" until it was added to `local.required_apis` and enabled.
+- CodeQL's `javascript` language does **not** silently no-op on a repo with
+  zero JS/TS files — it hard-fails the run ("no source code seen during
+  build"), confirmed on the very first push. `app/` is static HTML with no
+  script, so `.github/workflows/codeql.yml` now scans the `actions`
+  language instead (CodeQL's GitHub Actions workflow analysis), which has
+  real content to check today. Add the app's real language to the matrix
+  once a stack ADR picks one — don't assume an empty-language matrix entry
+  is harmless.
 
 ## Decisions
 
