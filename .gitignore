@@ -8,6 +8,7 @@ backend.hcl
 !backend.hcl.example
 crash.log
 crash.*.log
+tfplan
 
 # OS
 .DS_Store

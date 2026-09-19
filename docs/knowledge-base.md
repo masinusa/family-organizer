@@ -27,6 +27,25 @@ don't rewrite — newest entry last in each section.
   valid with just `disable_default_iam_recipients`. Simplest fix: omit the
   block entirely; billing account admins still get the default threshold
   emails without it.
+- Applying with a *user's* gcloud credentials (not a service account key)
+  can fail `google_billing_budget` with `403 ... requires a quota project,
+  which is not set by default`, even after `gcloud auth
+  application-default set-quota-project`. The ADC file's `quota_project_id`
+  isn't respected by every API — `billingbudgets.googleapis.com` billed
+  against gcloud's own default OAuth client project (`764086051850`)
+  instead. Fix is in `provider.tf`: `user_project_override = true` +
+  `billing_project = var.project_id` on the `google` provider block, which
+  forces every API call to quota/bill against the target project
+  regardless of ADC. Verified working end-to-end on the real project.
+- `apis.tf` must include plain `iam.googleapis.com`, not just
+  `iamcredentials.googleapis.com` — service accounts and workload identity
+  pools need the former. This was masked on the very first `apply` because,
+  before the `billing_project` override above was added, those calls were
+  incorrectly checking API-enablement against gcloud's own project (which
+  has everything enabled), not the target project. Once the override was
+  correct, `google_service_account`/`google_iam_workload_identity_pool`
+  started failing with `iam.googleapis.com` "not been used in this
+  project" until it was added to `local.required_apis` and enabled.
 
 ## Decisions
 
