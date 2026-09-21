@@ -49,6 +49,11 @@ variable "budget_currency_code" {
   default     = "USD"
 }
 
+variable "custom_domain" {
+  description = "Apex domain mapped to the Cloud Run service (e.g. spicers.family)"
+  type        = string
+}
+
 variable "placeholder_image" {
   description = "Image Cloud Run starts on before CI has ever pushed a real one. Terraform ignores changes to this field after the initial apply."
   type        = string

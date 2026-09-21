@@ -72,3 +72,29 @@ Rationale:
   trust a clean `terraform apply` alone, since IAP's actual reachability
   now depends on state outside Terraform (the manual consent screen).
   Logged in `docs/knowledge-base.md`.
+
+## Addendum (Sept 2026): custom domain
+
+Revisited per the "no custom domain decision" note above, now that a real
+domain (`spicers.family`) was registered. Chose **Cloud Run Domain
+Mapping** (`google_cloud_run_domain_mapping`,
+`infra/terraform/domain_mapping.tf`) over adding the load-balancer stack
+this ADR originally rejected — it stays consistent with the "fewer moving
+parts, minimal recurring cost" rationale above, and Google's docs confirm
+apex domains are supported directly (A/AAAA records at host `@`, not just
+subdomains via CNAME).
+
+Two caveats accepted, not previously a factor when this ADR was written:
+
+- Domain Mapping is Google's **preview**, not GA, feature — flagged as
+  "not production-ready" due to latency characteristics. Acceptable for a
+  small, non-critical family app; would need reconsidering (likely back to
+  the load-balancer option) if this app ever needed production-grade SLAs.
+- Domain Mapping only works in a subset of Cloud Run regions.
+  `us-central1` (this project's region) is supported, so no migration was
+  needed.
+
+IAP interaction still needs the manual re-verification this ADR already
+calls for above: once DNS is live, confirm a real family-group member
+hitting `https://spicers.family` still gets IAP's login prompt and lands
+in the app, same as they do today via the `run.app` URL.

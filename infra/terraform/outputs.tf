@@ -21,3 +21,10 @@ output "WIF_PROVIDER" {
 output "DEPLOYER_SA" {
   value = google_service_account.deployer.email
 }
+
+# DNS records to create at the registrar (Cloudflare) to complete the
+# domain mapping — A/AAAA for the apex host @. Don't hardcode these
+# elsewhere since Google can change them.
+output "DOMAIN_MAPPING_DNS_RECORDS" {
+  value = google_cloud_run_domain_mapping.app.status[0].resource_records
+}

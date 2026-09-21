@@ -11,7 +11,9 @@
   events, an attendee list, RSVP.
 - [ ] **Notifications and recurrence** — recurring events (RRULE),
   reminders/notifications for upcoming events.
-- [ ] **Custom domain** — map a real domain to the Cloud Run service.
-  **Flag:** domain mapping changes how IAP is fronted — revisit
-  `docs/adr/0002-gcp-cloud-run-iap.md` and re-verify access still works
-  end-to-end before shipping this.
+- [ ] **Custom domain** — `spicers.family` via Cloud Run Domain Mapping
+  (`infra/terraform/domain_mapping.tf`), applied 2026-09-21. Remaining: add
+  the A/AAAA records (see `terraform output DOMAIN_MAPPING_DNS_RECORDS`) at
+  Cloudflare (DNS-only, not proxied), and re-verify IAP access still works
+  end-to-end through the new domain — see the addendum in
+  `docs/adr/0002-gcp-cloud-run-iap.md`.
