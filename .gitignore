@@ -15,3 +15,7 @@ tfplan
 
 # Env
 .env
+
+# Node (app/)
+node_modules/
+dist/

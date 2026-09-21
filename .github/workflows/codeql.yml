@@ -1,11 +1,11 @@
 name: CodeQL
 
-# Phase 0's app/ is a static HTML/nginx placeholder with no JS/TS — pointing
-# CodeQL at "javascript" with zero real source hard-fails ("no source code
-# seen during build"), it doesn't silently no-op. Scan "actions" instead:
+# app/ was a static HTML/nginx placeholder with no JS/TS at first — pointing
+# CodeQL at "javascript" with zero real source hard-failed ("no source code
+# seen during build"), it didn't silently no-op. "actions" was added instead:
 # it analyzes our real .github/workflows/*.yml for injection-style issues,
-# which is actually useful content today. Add app-language coverage once a
-# stack ADR picks a real language for app/.
+# which was useful content on its own. Now that ADR 0005 picked Node/TS for
+# app/, "javascript-typescript" is scanned too.
 on:
   push:
     branches: [main]
@@ -21,7 +21,7 @@ jobs:
       security-events: write
     strategy:
       matrix:
-        language: ["actions"]
+        language: ["actions", "javascript-typescript"]
     steps:
       - uses: actions/checkout@v4
       - uses: github/codeql-action/init@v4

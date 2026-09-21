@@ -10,6 +10,22 @@ resource "google_cloud_run_v2_service" "app" {
 
     containers {
       image = var.placeholder_image
+
+      # Consumed by app/src/middleware/iap-auth.ts to build the audience
+      # string the IAP JWT assertion is verified against:
+      # /projects/{number}/locations/{region}/services/{name}.
+      env {
+        name  = "GCP_PROJECT_NUMBER"
+        value = data.google_project.current.number
+      }
+      env {
+        name  = "GCP_REGION"
+        value = var.region
+      }
+      env {
+        name  = "GCP_SERVICE_NAME"
+        value = var.service_name
+      }
     }
   }
 

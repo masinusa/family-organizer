@@ -4,6 +4,7 @@ locals {
     "artifactregistry.googleapis.com",
     "iap.googleapis.com",
     "iam.googleapis.com",
+    "firestore.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
     "cloudresourcemanager.googleapis.com",
