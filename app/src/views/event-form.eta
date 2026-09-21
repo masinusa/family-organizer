@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Family Hub</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 30rem; margin: 2rem auto; padding: 0 1rem; }
+      label { display: block; margin-top: 1rem; font-weight: 600; }
+      input[type="text"],
+      input[type="datetime-local"],
+      textarea {
+        width: 100%;
+        padding: 0.4rem;
+        margin-top: 0.25rem;
+        box-sizing: border-box;
+        font: inherit;
+      }
+      .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-weight: normal; }
+      .error { color: #b00020; }
+      button { margin-top: 1.5rem; padding: 0.5rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <p><a href="/">&larr; Back</a></p>
+    <h1><%= it.values.id ? "Edit event" : "New event" %></h1>
+    <% if (it.error) { %>
+    <p class="error"><%= it.error %></p>
+    <% } %>
+    <form method="post" action="<%= it.values.id ? '/events/' + it.values.id : '/events' %>">
+      <label>
+        Title
+        <input type="text" name="title" value="<%= it.values.title %>" required />
+      </label>
+      <label>
+        Description
+        <textarea name="description"><%= it.values.description %></textarea>
+      </label>
+      <label>
+        Start
+        <input type="datetime-local" name="startAt" value="<%= it.values.startAt %>" required />
+      </label>
+      <label>
+        End
+        <input type="datetime-local" name="endAt" value="<%= it.values.endAt %>" required />
+      </label>
+      <label>
+        Location
+        <input type="text" name="location" value="<%= it.values.location %>" />
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="allDay" <%= it.values.allDay ? "checked" : "" %> />
+        All day
+      </label>
+      <button type="submit">Save</button>
+    </form>
+  </body>
+</html>
