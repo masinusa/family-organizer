@@ -64,9 +64,9 @@ Rationale:
   remain GA and Terraform-managed as before — only the consent-screen
   provisioning step moved out of Terraform.
 - No custom domain decision is made here — using the default `run.app`
-  URL. Adding a custom domain later (`docs/roadmap.md` Phase 4) may require
-  revisiting this ADR, since domain-mapped Cloud Run's interaction with
-  native IAP should be re-verified.
+  URL. Adding a custom domain later (see the "Custom domain" item in
+  `docs/roadmap.md`) may require revisiting this ADR, since domain-mapped
+  Cloud Run's interaction with native IAP should be re-verified.
 - After any change to `infra/terraform/iap.tf`, manually verify a real
   family-group member can load the URL and gets IAP's login prompt — don't
   trust a clean `terraform apply` alone, since IAP's actual reachability

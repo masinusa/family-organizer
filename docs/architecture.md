@@ -33,33 +33,34 @@ deployed image so the two don't fight each other.
 ## Data model
 
 The product is a single shared family calendar — no per-household or
-per-person calendars, no photo storage. Once a real datastore is chosen
-(Phase 1 stack ADR), the model is expected to be:
+per-person calendars, no photo storage. Per ADR 0005, the datastore is
+Firestore (Native mode), which has no joins/foreign keys, so the shape is
+collections/subcollections rather than relational tables:
 
-**`events`**
+**`events/{eventId}`** (top-level collection)
 
-| column           | notes                                |
+| field           | notes                                |
 | ---------------- | ------------------------------------- |
-| id               | primary key                           |
 | title            |                                        |
 | description      | nullable                              |
-| start_at         |                                        |
-| end_at           |                                        |
-| all_day          | boolean                               |
+| startAt          | Timestamp                             |
+| endAt            | Timestamp                             |
+| allDay           | boolean                               |
 | location         | nullable, free text                   |
-| recurrence_rule  | nullable (e.g. RRULE string)          |
-| created_by       | email, from the IAP identity header   |
-| created_at       |                                        |
-| updated_at       |                                        |
+| recurrenceRule   | nullable (e.g. RRULE string)          |
+| createdBy        | email, from the IAP identity header   |
+| createdAt        |                                        |
+| updatedAt        |                                        |
 
-**`attendees`**
+**`events/{eventId}/attendees/{attendeeId}`** (subcollection)
 
-| column          | notes                                                 |
+| field          | notes                                                 |
 | --------------- | ------------------------------------------------------ |
-| event_id        | FK -> events.id                                        |
-| user_email      | from the IAP identity header                            |
-| response_status | enum: needs_action / accepted / declined / tentative    |
-| is_organizer    | boolean                                                 |
+| userEmail      | from the IAP identity header                            |
+| responseStatus | enum: needs_action / accepted / declined / tentative    |
+| isOrganizer    | boolean                                                 |
 
-No `users` or credentials table is needed — IAP plus the family Google Group
-are the entire identity system.
+Attendees are a subcollection rather than an array field on the event so
+that an RSVP is a single targeted document write, not a read-modify-write of
+the whole attendee list. No `users` or credentials table is needed — IAP
+plus the family Google Group are the entire identity system.
