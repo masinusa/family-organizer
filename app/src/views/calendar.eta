@@ -3,7 +3,10 @@
 <p class="who">Signed in as <strong><%= it.email %></strong>.<% if (it.isAdmin) { %> &middot; <a href="/admin">Admin</a><% } %></p>
 <a class="new-btn" href="/events/new">+ New event</a>
 <div class="cal-header">
-  <a class="cal-nav" href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>">&lsaquo; Prev</a>
+  <div class="cal-nav-group">
+    <a class="cal-nav" href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>">&lsaquo; Prev</a>
+    <a class="cal-nav cal-today-btn" href="/">Today</a>
+  </div>
   <h2 class="cal-title"><%= new Date(it.year, it.month - 1, 1).toLocaleString(undefined, { month: "long", year: "numeric" }) %></h2>
   <a class="cal-nav" href="/?year=<%= it.next.year %>&month=<%= it.next.month %>">Next &rsaquo;</a>
 </div>
