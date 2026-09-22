@@ -1,28 +1,15 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Family Hub</title>
-    <style>
-      body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
-      .event { padding: 0.75rem 0; border-bottom: 1px solid #ddd; }
-      .event a { font-weight: 600; text-decoration: none; }
-      .when { color: #555; font-size: 0.9rem; }
-      .new-event { display: inline-block; margin-bottom: 1rem; }
-    </style>
-  </head>
-  <body>
-    <h1>Family Hub</h1>
-    <p>Signed in as <strong><%= it.email %></strong>.</p>
-    <a class="new-event" href="/events/new">+ New event</a>
-    <% if (it.events.length === 0) { %>
-    <p>No upcoming events.</p>
-    <% } %> <% it.events.forEach(function (event) { %>
-    <div class="event">
-      <a href="/events/<%= event.id %>"><%= event.title %></a>
-      <div class="when"><%= event.startAt.toLocaleString() %></div>
-    </div>
-    <% }) %>
-  </body>
-</html>
+<% layout("./layout") %>
+<h1>Family Hub</h1>
+<p class="who">Signed in as <strong><%= it.email %></strong>.</p>
+<a class="new-btn" href="/events/new">+ New event</a>
+<% if (it.events.length === 0) { %>
+<p>No upcoming events.</p>
+<% } %> <% it.events.forEach(function (event) { %>
+<div class="card">
+  <div class="bar"></div>
+  <div>
+    <a href="/events/<%= event.id %>"><%= event.title %></a>
+    <div class="when"><%= event.startAt.toLocaleString() %></div>
+  </div>
+</div>
+<% }) %>

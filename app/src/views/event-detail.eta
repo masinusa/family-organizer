@@ -1,54 +1,39 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Family Hub</title>
-    <style>
-      body { font-family: system-ui, sans-serif; max-width: 30rem; margin: 2rem auto; padding: 0 1rem; }
-      .attendee { padding: 0.25rem 0; }
-      form.inline { display: inline; margin-left: 0.5rem; }
-      .actions { margin-top: 1.5rem; display: flex; gap: 0.5rem; align-items: center; }
-    </style>
-  </head>
-  <body>
-    <p><a href="/">&larr; Back</a></p>
-    <h1><%= it.event.title %></h1>
-    <p><%= it.event.startAt.toLocaleString() %> &ndash; <%= it.event.endAt.toLocaleString() %></p>
-    <% if (it.event.location) { %>
-    <p><%= it.event.location %></p>
-    <% } %> <% if (it.event.description) { %>
-    <p><%= it.event.description %></p>
-    <% } %>
+<% layout("./layout") %>
+<p><a class="back" href="/">&larr; Back</a></p>
+<h1><%= it.event.title %></h1>
+<p><%= it.event.startAt.toLocaleString() %> &ndash; <%= it.event.endAt.toLocaleString() %></p>
+<% if (it.event.location) { %>
+<p><%= it.event.location %></p>
+<% } %> <% if (it.event.description) { %>
+<p><%= it.event.description %></p>
+<% } %>
 
-    <h2>Attendees</h2>
-    <% it.attendees.forEach(function (a) { %>
-    <div class="attendee">
-      <%= a.userEmail %> <% if (a.isOrganizer) { %>(organizer)<% } %> &mdash; <%= a.responseStatus %>
-    </div>
-    <% }) %>
+<h2>Attendees</h2>
+<% it.attendees.forEach(function (a) { %>
+<div class="attendee">
+  <%= a.userEmail %> <% if (a.isOrganizer) { %>(organizer)<% } %> &mdash; <%= a.responseStatus %>
+</div>
+<% }) %>
 
-    <h2>Your RSVP</h2>
-    <form method="post" action="/events/<%= it.event.id %>/rsvp">
-      <select name="responseStatus">
-        <option value="accepted">Accepted</option>
-        <option value="declined">Declined</option>
-        <option value="tentative">Tentative</option>
-        <option value="needs_action">No response</option>
-      </select>
-      <button type="submit">Update RSVP</button>
-    </form>
+<h2>Your RSVP</h2>
+<form class="rsvp-form" method="post" action="/events/<%= it.event.id %>/rsvp">
+  <select name="responseStatus">
+    <option value="accepted">Accepted</option>
+    <option value="declined">Declined</option>
+    <option value="tentative">Tentative</option>
+    <option value="needs_action">No response</option>
+  </select>
+  <button type="submit">Update RSVP</button>
+</form>
 
-    <div class="actions">
-      <a href="/events/<%= it.event.id %>/edit">Edit</a>
-      <form
-        class="inline"
-        method="post"
-        action="/events/<%= it.event.id %>/delete"
-        onsubmit="return confirm('Delete this event?');"
-      >
-        <button type="submit">Delete</button>
-      </form>
-    </div>
-  </body>
-</html>
+<div class="actions">
+  <a href="/events/<%= it.event.id %>/edit">Edit</a>
+  <form
+    class="inline"
+    method="post"
+    action="/events/<%= it.event.id %>/delete"
+    onsubmit="return confirm('Delete this event?');"
+  >
+    <button type="submit">Delete</button>
+  </form>
+</div>
