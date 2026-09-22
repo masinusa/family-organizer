@@ -62,6 +62,24 @@ don't rewrite — newest entry last in each section.
   `docs/adr/0002-gcp-cloud-run-iap.md` and README quick start for the exact
   procedure. The client ID/secret live only in IAP's own settings — never
   in Terraform, never in this repo.
+- **Cloud Run Domain Mapping's cert provisioning can stall indefinitely
+  behind native IAP.** Google's automatic TLS cert for a domain mapping
+  requires a public, unauthenticated ACME HTTP-01 challenge request to
+  succeed — but `iap_enabled = true` intercepts that request too (confirmed
+  via `curl`: the challenge path got an IAP-generated redirect, not the
+  expected 200). Symptom: `gcloud beta run domain-mappings describe` stuck
+  on `CertificatePending` with "challenge data was not visible through the
+  public internet." Also hit: setting `iap_enabled = false` via Terraform
+  `apply` reported success but the live value silently reverted to `true`
+  within ~5 minutes with zero other writes in Cloud Audit Logs (a
+  suspected provider/API quirk around the `false` zero-value on this
+  newer, March-2026-GA'd field — not confirmed, but worth assuming this
+  field is unreliable to toggle off/on quickly via Terraform). What
+  actually worked: even that brief, imperfectly-controlled window with IAP
+  off was enough for the one-time ACME validation to succeed — the cert,
+  once issued, doesn't need continued public access to stay valid, so
+  don't assume you need `iap_enabled=false` to hold steady for long. See
+  the addendum in `docs/adr/0002-gcp-cloud-run-iap.md`.
 
 ## Decisions
 

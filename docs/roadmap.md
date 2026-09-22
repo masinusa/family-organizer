@@ -11,9 +11,11 @@
   events, an attendee list, RSVP.
 - [ ] **Notifications and recurrence** — recurring events (RRULE),
   reminders/notifications for upcoming events.
-- [ ] **Custom domain** — `spicers.family` via Cloud Run Domain Mapping
-  (`infra/terraform/domain_mapping.tf`), applied 2026-09-21. Remaining: add
-  the A/AAAA records (see `terraform output DOMAIN_MAPPING_DNS_RECORDS`) at
-  Cloudflare (DNS-only, not proxied), and re-verify IAP access still works
-  end-to-end through the new domain — see the addendum in
-  `docs/adr/0002-gcp-cloud-run-iap.md`.
+- [x] **Custom domain** — `spicers.family` mapped via Cloud Run Domain
+  Mapping (`infra/terraform/domain_mapping.tf`), DNS added at Cloudflare,
+  certificate provisioned, and IAP confirmed still fronting the domain
+  correctly (redirects to Google login same as the `run.app` URL). See the
+  addendum in `docs/adr/0002-gcp-cloud-run-iap.md`, which also documents a
+  real gotcha hit along the way: native IAP intercepts the ACME HTTP-01
+  challenge Google's cert provisioning needs, so it can stall indefinitely
+  unless IAP is briefly disabled to let the cert issue once.

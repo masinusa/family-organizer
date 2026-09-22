@@ -94,7 +94,15 @@ Two caveats accepted, not previously a factor when this ADR was written:
   `us-central1` (this project's region) is supported, so no migration was
   needed.
 
-IAP interaction still needs the manual re-verification this ADR already
-calls for above: once DNS is live, confirm a real family-group member
-hitting `https://spicers.family` still gets IAP's login prompt and lands
-in the app, same as they do today via the `run.app` URL.
+**IAP interaction, re-verified (2026-09-21):** confirmed the concern this
+ADR flagged was real, not hypothetical. Native IAP intercepts *every*
+request to the service, including the unauthenticated ACME HTTP-01
+challenge Google's automatic cert provisioning needs — the domain mapping
+sat stuck on `CertificatePending` indefinitely with `iap_enabled = true`.
+Worked around by briefly toggling `iap_enabled = false` to let the
+one-time challenge succeed, then back to `true`; the issued cert doesn't
+need continued public access to stay valid. Full details, including a
+Terraform-apply quirk hit along the way, in `docs/knowledge-base.md`
+(Pitfalls). End state confirmed working: `https://spicers.family` serves
+over valid HTTPS and redirects to Google's IAP login prompt, same as the
+`run.app` URL always has.

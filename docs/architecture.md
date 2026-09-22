@@ -16,10 +16,8 @@ Cloud Run service "family-hub"  <---- IAP <---- family member's browser
 (future) datastore for events/attendees
 ```
 
-Family members hit the Cloud Run URL directly today; `spicers.family` is
-being mapped onto it via Cloud Run Domain Mapping
-(`infra/terraform/domain_mapping.tf` — pending DNS setup and end-to-end
-verification, see `docs/roadmap.md`).
+Family members hit `spicers.family`, mapped to the Cloud Run URL via Cloud
+Run Domain Mapping (`infra/terraform/domain_mapping.tf`).
 Identity-Aware Proxy intercepts every request, requires the caller to
 authenticate with a Google account that's a member of the IAP access group,
 and forwards a signed identity assertion (`X-Goog-IAP-JWT-Assertion`) to the
