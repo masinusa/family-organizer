@@ -100,6 +100,7 @@ eventsRouter.get("/", async (req, res, next) => {
         next: next2,
         email: req.user?.email,
         isAdmin: isAdmin(req),
+        active: "calendar",
       }),
     );
   } catch (err) {
@@ -107,11 +108,14 @@ eventsRouter.get("/", async (req, res, next) => {
   }
 });
 
-eventsRouter.get("/events/new", (_req, res) => {
+eventsRouter.get("/events/new", (req, res) => {
   res.send(
     render("event-form", {
       values: formValuesFromBody({}, null),
       error: null,
+      email: req.user?.email,
+      isAdmin: isAdmin(req),
+      active: "calendar",
     }),
   );
 });
@@ -121,7 +125,15 @@ eventsRouter.post("/events", async (req, res, next) => {
     const values = formValuesFromBody(req.body, null);
     const parsed = parseEventInput(values);
     if ("error" in parsed) {
-      res.status(400).send(render("event-form", { values, error: parsed.error }));
+      res.status(400).send(
+        render("event-form", {
+          values,
+          error: parsed.error,
+          email: req.user?.email,
+          isAdmin: isAdmin(req),
+          active: "calendar",
+        }),
+      );
       return;
     }
     const id = await eventsRepo.create(parsed, req.user!.email);
@@ -138,7 +150,9 @@ eventsRouter.get("/events/:id", async (req, res, next) => {
       res.status(404).send("Event not found");
       return;
     }
-    res.send(render("event-detail", { event, email: req.user?.email }));
+    res.send(
+      render("event-detail", { event, email: req.user?.email, isAdmin: isAdmin(req), active: "calendar" }),
+    );
   } catch (err) {
     next(err);
   }
@@ -155,6 +169,9 @@ eventsRouter.get("/events/:id/edit", async (req, res, next) => {
       render("event-form", {
         values: formValuesFromEvent(event),
         error: null,
+        email: req.user?.email,
+        isAdmin: isAdmin(req),
+        active: "calendar",
       }),
     );
   } catch (err) {
@@ -167,7 +184,15 @@ eventsRouter.post("/events/:id", async (req, res, next) => {
     const values = formValuesFromBody(req.body, req.params.id);
     const parsed = parseEventInput(values);
     if ("error" in parsed) {
-      res.status(400).send(render("event-form", { values, error: parsed.error }));
+      res.status(400).send(
+        render("event-form", {
+          values,
+          error: parsed.error,
+          email: req.user?.email,
+          isAdmin: isAdmin(req),
+          active: "calendar",
+        }),
+      );
       return;
     }
     await eventsRepo.update(req.params.id, parsed);

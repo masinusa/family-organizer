@@ -6,8 +6,9 @@ export const config = {
   /**
    * Together these build the audience string IAP's JWT assertion is
    * verified against: /projects/{number}/locations/{region}/services/{name}.
-   * Set via Terraform (infra/terraform/cloud_run.tf) in the deployed
-   * environment.
+   * Also used by lib/iap-access.ts to address the IAP web resource whose
+   * IAM policy grants/revokes per-user access. Set via Terraform
+   * (infra/terraform/cloud_run.tf) in the deployed environment.
    */
   gcpProjectNumber: process.env.GCP_PROJECT_NUMBER ?? "",
   gcpRegion: process.env.GCP_REGION ?? "",

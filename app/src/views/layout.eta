@@ -32,6 +32,36 @@
       }
       .wrap { max-width: 34rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
       .wrap:has(.cal-grid) { max-width: 56rem; }
+      .topnav {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        max-width: 56rem;
+        margin: 0 auto;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .topnav-brand {
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 1rem;
+        color: var(--ink);
+        text-decoration: none;
+        margin-right: auto;
+      }
+      .topnav-links { display: flex; gap: 1.1rem; }
+      .topnav-links a {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-decoration: none;
+        padding-bottom: 0.2rem;
+      }
+      .topnav-links a.active { color: var(--primary); border-bottom: 2px solid var(--accent); }
+      .topnav-user { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+      @media (max-width: 30rem) {
+        .topnav-user { display: none; }
+      }
       h1 { font-family: var(--font-head); font-weight: 800; font-size: 1.5rem; margin: 0 0 0.9rem; text-wrap: balance; }
       h2 { font-family: var(--font-head); font-weight: 700; font-size: 1.05rem; margin: 1.75rem 0 0.6rem; }
       a { color: var(--primary); }
@@ -43,10 +73,18 @@
         padding: 0.55rem 1.1rem;
         background: var(--primary);
         color: #fff;
+        border: none;
         border-radius: 999px;
         text-decoration: none;
         font-weight: 700;
         font-size: 0.85rem;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      .new-btn:disabled {
+        background: var(--border);
+        color: var(--muted);
+        cursor: not-allowed;
       }
       .card {
         display: flex;
@@ -152,6 +190,16 @@
     </style>
   </head>
   <body>
+    <% if (it.email) { %>
+    <nav class="topnav">
+      <a class="topnav-brand" href="/">Family Hub</a>
+      <div class="topnav-links">
+        <a href="/" class="<%= it.active === "calendar" ? "active" : "" %>">Calendar</a>
+        <a href="/admin" class="<%= it.active === "admin" ? "active" : "" %>">Family</a>
+      </div>
+      <div class="topnav-user"><%= it.email %></div>
+    </nav>
+    <% } %>
     <div class="wrap"><%~ it.body %></div>
   </body>
 </html>

@@ -1,0 +1,51 @@
+<% layout("./layout") %>
+<p><a class="back" href="/admin">&larr; Back to Family Members</a></p>
+<h1>Manage Family Members</h1>
+<% if (it.error) { %>
+<p class="error"><%= it.error %></p>
+<% } %>
+<% it.users.forEach(function (u) { %>
+<div class="card">
+  <div class="bar"></div>
+  <div>
+    <div><strong><%= u.email %></strong> &mdash; <%= u.role %></div>
+    <form class="inline" method="post" action="/admin/users/<%= encodeURIComponent(u.email) %>/role">
+      <select name="role">
+        <option value="member" <%= u.role === "member" ? "selected" : "" %>>Member</option>
+        <option value="admin" <%= u.role === "admin" ? "selected" : "" %>>Admin</option>
+      </select>
+      <button type="submit">Update role</button>
+    </form>
+    <form
+      class="inline"
+      method="post"
+      action="/admin/users/<%= encodeURIComponent(u.email) %>/delete"
+      onsubmit="return confirm('Remove this family member\'s access? They\'ll need to be re-added to get back in.');"
+    >
+      <button type="submit">Remove</button>
+    </form>
+  </div>
+</div>
+<% }) %>
+
+<h2>Add a family member</h2>
+<p class="who">
+  This is one of two steps to let someone in: they also need to be added to
+  the family Google Group (see <code>infra/terraform/iap.tf</code>) so Google
+  will let them sign in at all. Until both are done, visiting the site shows
+  them an access-denied message.
+</p>
+<form method="post" action="/admin/users">
+  <label>
+    Email
+    <input type="text" name="email" required />
+  </label>
+  <label>
+    Role
+    <select name="role">
+      <option value="member">Member</option>
+      <option value="admin">Admin</option>
+    </select>
+  </label>
+  <button type="submit">Add</button>
+</form>

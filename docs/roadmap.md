@@ -20,10 +20,11 @@
   challenge Google's cert provisioning needs, so it can stall indefinitely
   unless IAP is briefly disabled to let the cert issue once.
 - [x] **Family member administration** — Firestore `users` collection is
-  an explicit access gate layered behind IAP: an admin must add a family
-  member (role: admin/member) via `/admin` before they can use the app at
-  all, even if they're already in the IAP Google Group. Removing someone
-  deletes their doc outright.
+  the single source of truth for both app access and IAP access: an admin
+  adds a family member (role: admin/member) via `/admin`, which both
+  creates their Firestore doc and grants their IAP access directly (ADR
+  0006, replacing an earlier Google-Group-based approach). Removing
+  someone deletes their doc outright and revokes IAP access to match.
 - [ ] **Friendly access-denied page** — a custom `/access-denied` page for
   visitors who sign in with Google but aren't in the family group, via
   IAP's `accessDeniedPageSettings`; needs a manual `gcloud iap settings

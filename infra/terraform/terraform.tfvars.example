@@ -4,8 +4,9 @@ service_name = "family-hub"
 ar_repo_name = "family-hub"
 github_repo  = "masinusa/family-organizer"
 
-# Spicer Family group, created 2026-09-18.
-iap_access_group = "spicer-familia@googlegroups.com"
+# Bootstrap/recovery access — the app manages everyone else's IAP access
+# directly (see infra/terraform/iap.tf).
+bootstrap_admin_email = "admin@example.com"
 
 custom_domain = "yourdomain.example"
 

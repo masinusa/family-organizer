@@ -27,8 +27,8 @@ variable "github_repo" {
   default     = "masinusa/family-organizer"
 }
 
-variable "iap_access_group" {
-  description = "Google Group email authorized to pass IAP. Create this group and add family members before applying."
+variable "bootstrap_admin_email" {
+  description = "Email Terraform always grants IAP access to directly, independent of the app's own per-user access management. The recovery path if that ever breaks — mirrors scripts/seed-admin.ts on the Firestore side."
   type        = string
 }
 

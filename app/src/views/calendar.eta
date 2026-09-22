@@ -1,6 +1,5 @@
 <% layout("./layout") %>
-<h1>Family Hub</h1>
-<p class="who">Signed in as <strong><%= it.email %></strong>.<% if (it.isAdmin) { %> &middot; <a href="/admin">Admin</a><% } %></p>
+<h1>Calendar</h1>
 <a class="new-btn" href="/events/new">+ New event</a>
 <div class="cal-header">
   <div class="cal-nav-group">

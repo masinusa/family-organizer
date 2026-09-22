@@ -103,6 +103,26 @@ don't rewrite — newest entry last in each section.
   manually hitting the running app against the emulator — `npm test`
   wouldn't have caught it, since this repo doesn't run Firestore-backed
   tests against real query behavior.
+- **The Admin SDK Directory API cannot manage a consumer Google Group's
+  membership at all** — it only works for groups belonging to a Google
+  Workspace or Cloud Identity org the caller administers.
+  `spicer-familia@googlegroups.com` was a plain group created at
+  groups.google.com, not part of any such org (family members sign in with
+  personal Gmail, not a Workspace — see ADR 0002). There's no domain-wide
+  delegation or service-account trick that gets around this; the group has
+  to belong to an org first. Led to ADR 0006: dropped the Group, app now
+  grants/revokes `roles/iap.httpsResourceAccessor` per email directly on
+  Cloud Run's own IAP resource instead.
+- **`https://iap.googleapis.com/v1/{resource}:getIamPolicy` is `POST`, not
+  `GET`**, unlike almost every other GCP IAM `getIamPolicy` endpoint — a
+  plain `GET` 404s. Confirmed against the live resource with `gcloud iap
+  web get-iam-policy --resource-type=cloud-run ... --log-http` before
+  relying on it in `app/src/lib/iap-access.ts`; don't assume this one
+  follows the usual convention. The resource name accepts either the
+  project ID or project number interchangeably
+  (`projects/{id-or-number}/iap_web/cloud_run-{region}/services/{name}`) —
+  confirmed both work via direct `curl`, though `gcloud`'s own `--log-http`
+  output uses the number.
 
 ## Decisions
 
@@ -133,6 +153,13 @@ don't rewrite — newest entry last in each section.
   special-casing in code and is seeded once via `npm run seed:admin`,
   idempotent/safely re-runnable as a recovery path; the admin UI refuses
   to demote or delete the last remaining admin to avoid a total lockout.
+- **Superseded the Google-Group decision above.** The Firestore `users`
+  collection is now the single source of truth for both app access and
+  IAP access — `/admin` grants/revokes `roles/iap.httpsResourceAccessor`
+  per email directly, no Group involved, no `iap_access_group` variable
+  anymore. See ADR 0006 and the Pitfalls entries above for why (a consumer
+  Google Group can't be managed by API at all) and how (IAP's own IAM
+  policy, not the Admin SDK).
 
 ## Guidelines
 

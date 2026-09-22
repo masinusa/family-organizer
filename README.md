@@ -33,7 +33,10 @@ docs/                Architecture, threat model, roadmap, ADRs
 ## Quick start (infrastructure)
 
 Prerequisites: a **dedicated** GCP project with billing, `gcloud`,
-`terraform >= 1.9`, a Google Group for family access.
+`terraform >= 1.9`. No Google Group needed — the app grants/revokes IAP
+access per family member itself (ADR 0006); `terraform.tfvars` just needs
+`bootstrap_admin_email`, a recovery-path email Terraform always grants
+access to directly.
 
 ```bash
 ./scripts/bootstrap.sh <project-id>                 # private, versioned state bucket
@@ -77,14 +80,15 @@ let Terraform manage OAuth setup in March 2026 — see
    rm /tmp/iap-oauth.yaml
    ```
 
-Until this is done, IAP blocks everyone, including group members, with
+Until this is done, IAP blocks everyone, including the bootstrap admin, with
 `Empty Google Account OAuth client ID(s)/secret(s)`.
 
 4. (Optional) Point IAP's access-denied page at the app's own friendly
    page (`app/src/routes/access-denied.ts`), shown to someone who signs in
-   with Google but isn't in the family group. **Fetch current settings
-   first** — `iap settings set` replaces the whole settings resource, so
-   skipping this would wipe the OAuth client settings from step 3:
+   with Google but hasn't been granted IAP access. **Fetch current
+   settings first** — `iap settings set` replaces the whole settings
+   resource, so skipping this would wipe the OAuth client settings from
+   step 3:
    ```bash
    gcloud iap settings get \
      --project=<project-id> --resource-type=cloud-run \
@@ -98,8 +102,8 @@ Until this is done, IAP blocks everyone, including group members, with
      --region=<region> --service=<service-name>
    rm /tmp/iap-settings.yaml
    ```
-   **Verify manually** by signing in with a Google account that is *not*
-   in the family group and confirming the friendly page renders — native
+   **Verify manually** by signing in with a Google account that hasn't
+   been granted IAP access and confirming the friendly page renders — native
    Cloud Run IAP has previously intercepted requests other GCP docs assume
    are exempt (see the ACME-challenge pitfall in
    `docs/adr/0002-gcp-cloud-run-iap.md`), so don't assume this works

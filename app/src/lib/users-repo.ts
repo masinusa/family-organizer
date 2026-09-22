@@ -1,5 +1,6 @@
 import { FieldPath, Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
+import * as iapAccess from "./iap-access.js";
 import type { UserDoc, UserRole } from "./types.js";
 
 const usersCollection = () => firestore.collection("users");
@@ -40,6 +41,13 @@ export async function listUsers(): Promise<UserDoc[]> {
  * already exists. Idempotent by design: this is what makes it safe to use
  * both as the admin "add a family member" action and as a re-runnable
  * bootstrap/recovery script (see scripts/seed-admin.ts).
+ *
+ * Also grants IAP access for the email — the Firestore doc used to be
+ * necessary-but-not-sufficient (they still needed adding to a separate
+ * Google Group by hand); now this one call is the whole grant. A failure
+ * to reach IAP is logged, not thrown: the Firestore doc is the access
+ * record that matters to the rest of the app, and must not roll back just
+ * because the secondary IAM write hiccupped.
  */
 export async function createUser(email: string, role: UserRole): Promise<UserDoc> {
   const id = normalizeEmail(email);
@@ -47,14 +55,22 @@ export async function createUser(email: string, role: UserRole): Promise<UserDoc
   const existing = await ref.get();
   const now = Timestamp.now();
 
+  let user: UserDoc;
   if (!existing.exists) {
     await ref.set({ role, createdAt: now, updatedAt: now });
-    return toUserDoc(id, { role, createdAt: now, updatedAt: now });
+    user = toUserDoc(id, { role, createdAt: now, updatedAt: now });
+  } else {
+    await ref.update({ role, updatedAt: now });
+    const data = existing.data()!;
+    user = toUserDoc(id, { ...data, role, updatedAt: now });
   }
 
-  await ref.update({ role, updatedAt: now });
-  const data = existing.data()!;
-  return toUserDoc(id, { ...data, role, updatedAt: now });
+  try {
+    await iapAccess.grantAccess(id);
+  } catch (err) {
+    console.error(`Failed to grant IAP access to ${id}:`, err);
+  }
+  return user;
 }
 
 /** Pure — no Firestore access — so it's unit-testable without an emulator. */
@@ -82,11 +98,21 @@ export async function setRole(email: string, role: UserRole): Promise<void> {
   await usersCollection().doc(id).update({ role, updatedAt: Timestamp.now() });
 }
 
-/** Real delete — access is revoked immediately, not soft-flagged. */
+/**
+ * Real delete — access is revoked immediately, not soft-flagged. Also
+ * revokes IAP access; a failure there is logged, not thrown, since the
+ * Firestore delete is the revocation that matters even if the secondary
+ * IAM write hiccups (see requireFamilyMember in access-control.ts).
+ */
 export async function deleteUser(email: string): Promise<void> {
   const id = normalizeEmail(email);
   await assertNotLastAdmin(id);
   await usersCollection().doc(id).delete();
+  try {
+    await iapAccess.revokeAccess(id);
+  } catch (err) {
+    console.error(`Failed to revoke IAP access for ${id}:`, err);
+  }
 }
 
 /**

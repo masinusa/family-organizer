@@ -10,19 +10,29 @@ Artifact Registry (Docker)
         |  deploy-cloudrun
         v
 Cloud Run service "family-hub"  <---- IAP <---- family member's browser
-   (ingress: all, iap_enabled)          (Google OAuth via the family
-        |  runtime SA                    Google Group)
+   (ingress: all, iap_enabled)          (Google OAuth; per-user access
+        |  runtime SA                    the app itself grants/revokes)
         v
-(future) datastore for events/attendees
+Firestore (events, users)
 ```
 
 Family members hit `spicers.family`, mapped to the Cloud Run URL via Cloud
 Run Domain Mapping (`infra/terraform/domain_mapping.tf`).
-Identity-Aware Proxy intercepts every request, requires the caller to
-authenticate with a Google account that's a member of the IAP access group,
-and forwards a signed identity assertion (`X-Goog-IAP-JWT-Assertion`) to the
-app containing the authenticated email. The app never implements its own
-login or password store — IAP is the entire auth boundary.
+Identity-Aware Proxy intercepts every request and requires the caller to
+authenticate with a Google account holding `roles/iap.httpsResourceAccessor`
+on the service, then forwards a signed identity assertion
+(`X-Goog-IAP-JWT-Assertion`) to the app containing the authenticated email.
+The app never implements its own login or password store — IAP is the
+entire auth boundary.
+
+Who holds that role is managed by the app itself, not a Google Group: the
+Firestore `users` collection (below) is the single source of truth for both
+"has app access" and "can pass IAP" — adding or removing a family member via
+`/admin` grants or revokes their IAP access directly, through
+`app/src/lib/iap-access.ts`. One binding stays outside the app's control as
+a bootstrap/recovery path (`bootstrap_admin_email` in
+`infra/terraform/iap.tf`). See ADR 0006 for why this replaced a Google
+Group.
 
 Deploys are decoupled from infrastructure changes: GitHub Actions (via
 Workload Identity Federation, no long-lived keys) builds and pushes a new
@@ -63,5 +73,17 @@ collections/subcollections rather than relational tables:
 
 Attendees are a subcollection rather than an array field on the event so
 that an RSVP is a single targeted document write, not a read-modify-write of
-the whole attendee list. No `users` or credentials table is needed — IAP
-plus the family Google Group are the entire identity system.
+the whole attendee list.
+
+**`users/{email}`** (top-level collection, doc ID is the lowercased email)
+
+| field     | notes                                    |
+| --------- | ------------------------------------------ |
+| role      | enum: admin / member                      |
+| createdAt |                                            |
+| updatedAt |                                            |
+
+This is the entire identity/authorization system alongside IAP: a doc's
+presence is what grants app access, and its existence also drives the
+IAP-access grant itself (ADR 0006) — there's no separate credentials table
+or external group to keep in sync.
