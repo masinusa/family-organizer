@@ -1,6 +1,8 @@
 import { Router } from "express";
+import { buildMonthGrid } from "../lib/calendar-grid.js";
 import * as eventsRepo from "../lib/events-repo.js";
 import { render } from "../lib/render.js";
+import { isAdmin } from "../middleware/access-control.js";
 import type { EventDoc, EventInput } from "../lib/types.js";
 
 export const eventsRouter = Router();
@@ -78,8 +80,28 @@ function parseEventInput(values: FormValues): EventInput | { error: string } {
 
 eventsRouter.get("/", async (req, res, next) => {
   try {
-    const events = await eventsRepo.listUpcoming();
-    res.send(render("events-list", { events, email: req.user?.email }));
+    const now = new Date();
+    const year = Number(req.query.year) || now.getFullYear();
+    const month = Number(req.query.month) || now.getMonth() + 1;
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 1);
+
+    const events = await eventsRepo.listInRange(monthStart, monthEnd);
+    const grid = buildMonthGrid(year, month, events);
+    const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+    const next2 = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+
+    res.send(
+      render("calendar", {
+        grid,
+        year,
+        month,
+        prev,
+        next: next2,
+        email: req.user?.email,
+        isAdmin: isAdmin(req),
+      }),
+    );
   } catch (err) {
     next(err);
   }
@@ -111,12 +133,12 @@ eventsRouter.post("/events", async (req, res, next) => {
 
 eventsRouter.get("/events/:id", async (req, res, next) => {
   try {
-    const result = await eventsRepo.getWithAttendees(req.params.id);
-    if (!result) {
+    const event = await eventsRepo.get(req.params.id);
+    if (!event) {
       res.status(404).send("Event not found");
       return;
     }
-    res.send(render("event-detail", { ...result, email: req.user?.email }));
+    res.send(render("event-detail", { event, email: req.user?.email }));
   } catch (err) {
     next(err);
   }
@@ -124,14 +146,14 @@ eventsRouter.get("/events/:id", async (req, res, next) => {
 
 eventsRouter.get("/events/:id/edit", async (req, res, next) => {
   try {
-    const result = await eventsRepo.getWithAttendees(req.params.id);
-    if (!result) {
+    const event = await eventsRepo.get(req.params.id);
+    if (!event) {
       res.status(404).send("Event not found");
       return;
     }
     res.send(
       render("event-form", {
-        values: formValuesFromEvent(result.event),
+        values: formValuesFromEvent(event),
         error: null,
       }),
     );

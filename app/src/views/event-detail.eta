@@ -7,24 +7,7 @@
 <% } %> <% if (it.event.description) { %>
 <p><%= it.event.description %></p>
 <% } %>
-
-<h2>Attendees</h2>
-<% it.attendees.forEach(function (a) { %>
-<div class="attendee">
-  <%= a.userEmail %> <% if (a.isOrganizer) { %>(organizer)<% } %> &mdash; <%= a.responseStatus %>
-</div>
-<% }) %>
-
-<h2>Your RSVP</h2>
-<form class="rsvp-form" method="post" action="/events/<%= it.event.id %>/rsvp">
-  <select name="responseStatus">
-    <option value="accepted">Accepted</option>
-    <option value="declined">Declined</option>
-    <option value="tentative">Tentative</option>
-    <option value="needs_action">No response</option>
-  </select>
-  <button type="submit">Update RSVP</button>
-</form>
+<p class="who">Owner: <strong><%= it.event.createdBy %></strong></p>
 
 <div class="actions">
   <a href="/events/<%= it.event.id %>/edit">Edit</a>

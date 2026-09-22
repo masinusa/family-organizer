@@ -1,6 +1,6 @@
 import { Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
-import type { AttendeeDoc, EventDoc, EventInput, ResponseStatus } from "./types.js";
+import type { EventDoc, EventInput } from "./types.js";
 
 const eventsCollection = () => firestore.collection("events");
 
@@ -20,15 +20,6 @@ function toEventDoc(id: string, data: DocumentData): EventDoc {
   };
 }
 
-function toAttendeeDoc(id: string, data: DocumentData): AttendeeDoc {
-  return {
-    id,
-    userEmail: data.userEmail,
-    responseStatus: data.responseStatus,
-    isOrganizer: Boolean(data.isOrganizer),
-  };
-}
-
 export async function listUpcoming(limit = 50): Promise<EventDoc[]> {
   const snapshot = await eventsCollection()
     .where("startAt", ">=", Timestamp.now())
@@ -38,30 +29,23 @@ export async function listUpcoming(limit = 50): Promise<EventDoc[]> {
   return snapshot.docs.map((doc) => toEventDoc(doc.id, doc.data()));
 }
 
-export async function getWithAttendees(
-  eventId: string,
-): Promise<{ event: EventDoc; attendees: AttendeeDoc[] } | null> {
-  const eventRef = eventsCollection().doc(eventId);
-  const [eventSnap, attendeesSnap] = await Promise.all([
-    eventRef.get(),
-    eventRef.collection("attendees").get(),
-  ]);
-  if (!eventSnap.exists) {
-    return null;
-  }
-  return {
-    event: toEventDoc(eventSnap.id, eventSnap.data()!),
-    attendees: attendeesSnap.docs.map((doc) => toAttendeeDoc(doc.id, doc.data())),
-  };
+export async function listInRange(start: Date, end: Date): Promise<EventDoc[]> {
+  const snapshot = await eventsCollection()
+    .where("startAt", ">=", Timestamp.fromDate(start))
+    .where("startAt", "<", Timestamp.fromDate(end))
+    .orderBy("startAt")
+    .get();
+  return snapshot.docs.map((doc) => toEventDoc(doc.id, doc.data()));
 }
 
-/** Creates the event and the creator's own organizer/accepted attendee record atomically. */
-export async function create(input: EventInput, createdBy: string): Promise<string> {
-  const eventRef = eventsCollection().doc();
-  const now = Timestamp.now();
-  const batch = firestore.batch();
+export async function get(eventId: string): Promise<EventDoc | null> {
+  const snap = await eventsCollection().doc(eventId).get();
+  return snap.exists ? toEventDoc(snap.id, snap.data()!) : null;
+}
 
-  batch.set(eventRef, {
+export async function create(input: EventInput, createdBy: string): Promise<string> {
+  const now = Timestamp.now();
+  const eventRef = await eventsCollection().add({
     title: input.title,
     description: input.description,
     startAt: Timestamp.fromDate(input.startAt),
@@ -73,13 +57,6 @@ export async function create(input: EventInput, createdBy: string): Promise<stri
     createdAt: now,
     updatedAt: now,
   });
-  batch.set(eventRef.collection("attendees").doc(), {
-    userEmail: createdBy,
-    responseStatus: "accepted" satisfies ResponseStatus,
-    isOrganizer: true,
-  });
-
-  await batch.commit();
   return eventRef.id;
 }
 
@@ -95,29 +72,6 @@ export async function update(eventId: string, input: EventInput): Promise<void> 
   });
 }
 
-/** Firestore doesn't cascade-delete subcollections, so attendees are deleted explicitly. */
 export async function deleteEvent(eventId: string): Promise<void> {
-  const eventRef = eventsCollection().doc(eventId);
-  const attendeesSnap = await eventRef.collection("attendees").get();
-
-  const batch = firestore.batch();
-  attendeesSnap.docs.forEach((doc) => batch.delete(doc.ref));
-  batch.delete(eventRef);
-  await batch.commit();
-}
-
-/** No per-event ACLs (docs/threat-model.md) — any authenticated family member may RSVP to any event. */
-export async function setRsvp(
-  eventId: string,
-  userEmail: string,
-  responseStatus: ResponseStatus,
-): Promise<void> {
-  const attendeesRef = eventsCollection().doc(eventId).collection("attendees");
-  const existing = await attendeesRef.where("userEmail", "==", userEmail).limit(1).get();
-
-  if (existing.empty) {
-    await attendeesRef.add({ userEmail, responseStatus, isOrganizer: false });
-  } else {
-    await existing.docs[0]!.ref.update({ responseStatus });
-  }
+  await eventsCollection().doc(eventId).delete();
 }

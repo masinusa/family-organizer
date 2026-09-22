@@ -1,5 +1,3 @@
-export type ResponseStatus = "needs_action" | "accepted" | "declined" | "tentative";
-
 export interface EventDoc {
   id: string;
   title: string;
@@ -14,13 +12,6 @@ export interface EventDoc {
   updatedAt: Date;
 }
 
-export interface AttendeeDoc {
-  id: string;
-  userEmail: string;
-  responseStatus: ResponseStatus;
-  isOrganizer: boolean;
-}
-
 export interface EventInput {
   title: string;
   description: string | null;
@@ -28,4 +19,13 @@ export interface EventInput {
   endAt: Date;
   allDay: boolean;
   location: string | null;
+}
+
+export type UserRole = "admin" | "member";
+
+export interface UserDoc {
+  email: string;
+  role: UserRole;
+  createdAt: Date;
+  updatedAt: Date;
 }

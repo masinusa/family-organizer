@@ -10,7 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "rm -rf dist && tsc -p tsconfig.json && cp -r src/views dist/views && cp -r src/public dist/public",
     "start": "node dist/server.js",
-    "test": "node --import tsx --test test/**/*.test.ts"
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "seed:admin": "tsx scripts/seed-admin.ts"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",

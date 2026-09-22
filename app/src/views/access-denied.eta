@@ -1,0 +1,4 @@
+<% layout("./layout") %>
+<h1>Welcome to the Family Hub</h1>
+<p>You're signed in with Google, but this site is invite-only.</p>
+<p>If you're already part of the family, ask an existing member to add you, then <a href="/">try again</a>.</p>

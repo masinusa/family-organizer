@@ -80,6 +80,31 @@ let Terraform manage OAuth setup in March 2026 — see
 Until this is done, IAP blocks everyone, including group members, with
 `Empty Google Account OAuth client ID(s)/secret(s)`.
 
+4. (Optional) Point IAP's access-denied page at the app's own friendly
+   page (`app/src/routes/access-denied.ts`), shown to someone who signs in
+   with Google but isn't in the family group. **Fetch current settings
+   first** — `iap settings set` replaces the whole settings resource, so
+   skipping this would wipe the OAuth client settings from step 3:
+   ```bash
+   gcloud iap settings get \
+     --project=<project-id> --resource-type=cloud-run \
+     --region=<region> --service=<service-name> --format=yaml > /tmp/iap-settings.yaml
+   # edit /tmp/iap-settings.yaml, adding (keep the existing accessSettings block):
+   #   applicationSettings:
+   #     accessDeniedPageSettings:
+   #       accessDeniedPageUri: https://<your-domain>/access-denied
+   gcloud iap settings set /tmp/iap-settings.yaml \
+     --project=<project-id> --resource-type=cloud-run \
+     --region=<region> --service=<service-name>
+   rm /tmp/iap-settings.yaml
+   ```
+   **Verify manually** by signing in with a Google account that is *not*
+   in the family group and confirming the friendly page renders — native
+   Cloud Run IAP has previously intercepted requests other GCP docs assume
+   are exempt (see the ACME-challenge pitfall in
+   `docs/adr/0002-gcp-cloud-run-iap.md`), so don't assume this works
+   without checking.
+
 Pushes to `main` that touch `app/` build and roll out a new Cloud Run
 revision automatically.
 

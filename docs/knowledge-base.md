@@ -80,6 +80,29 @@ don't rewrite — newest entry last in each section.
   once issued, doesn't need continued public access to stay valid, so
   don't assume you need `iap_enabled=false` to hold steady for long. See
   the addendum in `docs/adr/0002-gcp-cloud-run-iap.md`.
+- **An Eta `<% %>` code block that opens with a bare array/object literal
+  (`<% ["a","b"].forEach(...) %>`) can silently break with `Cannot read
+  properties of undefined (reading 'forEach')`.** Eta's codegen emits
+  `__eta.res+='<preceding text>'` with no trailing semicolon before each
+  code block; if any static text precedes the tag (even a single space or
+  newline) and the block starts with `[`, JS's automatic-semicolon-insertion
+  parses it as `'<preceding text>'["a","b"]` (computed member access on the
+  string) instead of two separate statements — the whole `.forEach` then
+  runs on `undefined`. Hit this in `app/src/views/calendar.eta`'s weekday
+  header loop. Fix: never start a code block with a literal `[`/`(` — assign
+  it to a `const` in its own `<% %>` tag first, then iterate the variable
+  (identifiers don't trigger ASI merging). Confirmed by diffing
+  `eta.compileToString()` output with vs. without leading text — the bug
+  reproduces in isolation with zero project-specific code involved.
+- **Firestore's `orderBy("field")` silently excludes any document missing
+  that field — it doesn't error.** `users-repo.ts`'s `listUsers()` ordered
+  by `"email"`, but email is only ever stored as the document ID, never as
+  a field, so the query returned zero results even with real docs present
+  (`/admin` rendered an empty member list right after a successful seed).
+  Fixed by ordering on `FieldPath.documentId()` instead. Caught only by
+  manually hitting the running app against the emulator — `npm test`
+  wouldn't have caught it, since this repo doesn't run Firestore-backed
+  tests against real query behavior.
 
 ## Decisions
 
@@ -92,6 +115,24 @@ don't rewrite — newest entry last in each section.
   `terraform apply`.
 - `app/` stays a static placeholder until a stack ADR is written — don't
   infer a framework choice from its current contents.
+- `GET /` now renders a month grid (`app/src/views/calendar.eta`) instead
+  of the old flat upcoming-events list, which was removed. Events are
+  bucketed onto a day cell by `startAt`'s local calendar date only, so a
+  multi-day event currently only renders on its start day — no logic
+  spans it across the days it covers.
+- Added a Firestore `users` collection as an explicit, app-level access
+  gate *behind* IAP: doc id is the lowercased email, the only field is
+  `role` (`admin`|`member`). Deliberately **no self-provisioning** — being
+  in the IAP Google Group only proves someone can complete Google sign-in,
+  it does not grant app access. An admin must add a doc via `/admin` (or
+  the seed script) before that email can use anything past the health
+  check. Removing someone is a real Firestore delete, not a status flag —
+  chosen over a soft-delete/tombstone specifically because this repo has
+  no self-provisioning to "undo": without it, a soft-delete would add
+  complexity for no benefit. The very first `admin` doc has no
+  special-casing in code and is seeded once via `npm run seed:admin`,
+  idempotent/safely re-runnable as a recovery path; the admin UI refuses
+  to demote or delete the last remaining admin to avoid a total lockout.
 
 ## Guidelines
 

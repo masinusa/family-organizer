@@ -19,3 +19,13 @@
   real gotcha hit along the way: native IAP intercepts the ACME HTTP-01
   challenge Google's cert provisioning needs, so it can stall indefinitely
   unless IAP is briefly disabled to let the cert issue once.
+- [x] **Family member administration** — Firestore `users` collection is
+  an explicit access gate layered behind IAP: an admin must add a family
+  member (role: admin/member) via `/admin` before they can use the app at
+  all, even if they're already in the IAP Google Group. Removing someone
+  deletes their doc outright.
+- [ ] **Friendly access-denied page** — a custom `/access-denied` page for
+  visitors who sign in with Google but aren't in the family group, via
+  IAP's `accessDeniedPageSettings`; needs a manual `gcloud iap settings
+  set` step and end-to-end verification against the deployed site with a
+  non-member Google account (see `docs/adr/0002-gcp-cloud-run-iap.md`).
