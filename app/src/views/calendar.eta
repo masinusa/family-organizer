@@ -72,13 +72,7 @@
 <dialog id="event-dialog" class="dialog-wide">
   <h2 id="event-dialog-title">New event</h2>
   <form method="post" action="/events">
-    <%~ include("./_event-fields", {
-      values: it.values,
-      members: it.members,
-      categories: it.categories,
-      statuses: it.statuses,
-      notInvolved: it.notInvolved,
-    }) %>
+    <%~ include("./_event-fields", it) %>
     <div class="dialog-actions">
       <button class="btn-quiet" type="button" id="cancel-event">Cancel</button>
       <button type="submit">Save event</button>
@@ -97,6 +91,11 @@
 
     function openOn(date) {
       form.reset();
+      // Always open compact, whatever was expanded last time.
+      var sheets = form.querySelectorAll(".sheet");
+      for (var i = 0; i < sheets.length; i += 1) {
+        sheets[i].open = false;
+      }
       startDate.value = date;
       endDate.value = date;
       endDate.min = date;

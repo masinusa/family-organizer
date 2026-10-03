@@ -9,12 +9,6 @@ export const RSVP_LABELS: Record<RsvpStatus, string> = {
   no: "No",
 };
 
-/** The "not attached to this event at all" option in the per-member select. */
-export const NOT_INVOLVED = "none";
-
-/** Blank guest rows offered on top of the ones already on the event. */
-export const SPARE_GUEST_ROWS = 3;
-
 /** How many `guestName:<i>` keys a submission is scanned for. */
 const MAX_GUEST_ROWS = 40;
 
@@ -62,20 +56,6 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-/**
- * Pads out to SPARE_GUEST_ROWS blank rows so there's always somewhere to
- * type another guest without any JavaScript. Blank rows are dropped on
- * parse, which is also how a guest gets removed: clear their name.
- */
-function withSpareRows(guests: GuestRow[]): GuestRow[] {
-  const kept = guests.filter((g) => g.name.trim() !== "");
-  const spares: GuestRow[] = Array.from({ length: SPARE_GUEST_ROWS }, () => ({
-    name: "",
-    status: "invited" as RsvpStatus,
-  }));
-  return [...kept, ...spares];
-}
-
 export function formValuesFromEvent(event: EventDoc): FormValues {
   const memberStatuses: Record<string, string> = {};
   const guests: GuestRow[] = [];
@@ -100,7 +80,7 @@ export function formValuesFromEvent(event: EventDoc): FormValues {
     link: event.link ?? "",
     categoryId: event.categoryId ?? "",
     memberStatuses,
-    guests: withSpareRows(guests),
+    guests,
   };
 }
 
@@ -116,10 +96,15 @@ export function formValuesFromBody(
 ): FormValues {
   const memberStatuses: Record<string, string> = {};
   for (const email of memberEmails) {
-    const value = asString(body[`memberStatus:${email}`]);
-    if (isRsvpStatus(value)) {
-      memberStatuses[email] = value;
+    // The `involved:` checkbox is what puts someone on the event; their
+    // status radio is only read once they're on it. Without the gate, a
+    // roster that renders a status control for every family member would
+    // attach all of them to every event.
+    if (body[`involved:${email}`] !== "on") {
+      continue;
     }
+    const value = asString(body[`memberStatus:${email}`]);
+    memberStatuses[email] = isRsvpStatus(value) ? value : "invited";
   }
 
   const guests: GuestRow[] = [];
@@ -145,7 +130,7 @@ export function formValuesFromBody(
     link: asString(body.link),
     categoryId: asString(body.categoryId),
     memberStatuses,
-    guests: withSpareRows(guests),
+    guests,
   };
 }
 

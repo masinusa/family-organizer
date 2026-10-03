@@ -2,14 +2,8 @@ import type { Request } from "express";
 import { buildMonthGrid } from "./calendar-grid.js";
 import { CATEGORY_NAME_MAX, listCategories, makeChipLookup, toChip } from "./categories.js";
 import * as eventsRepo from "./events-repo.js";
-import {
-  NOT_INVOLVED,
-  RSVP_LABELS,
-  RSVP_STATUSES,
-  attendeeSummary,
-  blankFormValues,
-  formatDateInput,
-} from "./event-input.js";
+import { eventFieldsData } from "./event-fields.js";
+import { attendeeSummary, blankFormValues, formatDateInput } from "./event-input.js";
 import { render } from "./render.js";
 import * as usersRepo from "./users-repo.js";
 import { isAdmin } from "../middleware/access-control.js";
@@ -75,11 +69,12 @@ export async function renderCalendarPage(
     dateInput: formatDateInput,
     defaultDate: formatDateInput(defaultNewEventDate(year, month)),
     nameMax: CATEGORY_NAME_MAX,
-    // Quick-add modal.
-    values: blankFormValues(members.map((member) => member.email)),
-    members,
-    statuses: RSVP_STATUSES.map((status) => ({ value: status, label: RSVP_LABELS[status] })),
-    notInvolved: NOT_INVOLVED,
+    // Quick-add modal — the same fields as the full-page form.
+    ...eventFieldsData(
+      blankFormValues(members.map((member) => member.email)),
+      members,
+      chips,
+    ),
     categoryError,
     email: req.user?.email,
     isAdmin: isAdmin(req),

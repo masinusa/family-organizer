@@ -19,13 +19,20 @@
 <p><%= it.event.description %></p>
 <% } %>
 
-<% if (it.groups.length) { %>
 <h2>Who's involved</h2>
+<% if (it.groups.length) { %>
 <% it.groups.forEach(function (group) { %>
-<p class="group"><strong><%= group.label %>:</strong> <%= group.names.join(", ") %></p>
+<div class="group">
+  <span class="group-label seg-<%= group.status %>"><%= group.label %></span>
+  <% group.faces.forEach(function (face) { %>
+  <span class="face" title="<%= face.sub || face.label %>">
+    <span class="av" style="background: <%= face.color %>; color: <%= face.ink %>"><%= face.initial %></span>
+    <%= face.label %>
+  </span>
+  <% }) %>
+</div>
 <% }) %>
 <% } else { %>
-<h2>Who's involved</h2>
 <p class="hint">Nobody added yet.</p>
 <% } %>
 

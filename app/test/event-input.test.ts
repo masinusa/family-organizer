@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  NOT_INVOLVED,
-  SPARE_GUEST_ROWS,
   attendeeSummary,
   blankFormValues,
   formValuesFromBody,
@@ -136,19 +134,36 @@ test("builds attendees from member statuses and guest rows", () => {
   ]);
 });
 
-test("a submission can only set statuses for known family members", () => {
+test("a member is attached only when their involved box is ticked", () => {
   const body = {
+    "involved:member@example.com": "on",
     "memberStatus:member@example.com": "yes",
+    // The roster renders a status control for everyone, so a status with
+    // no involved box must not put someone on the event.
+    "memberStatus:bystander@example.com": "yes",
+    // Ticked but unanswered, and ticked with a status that isn't one.
+    "involved:asked@example.com": "on",
+    "involved:odd@example.com": "on",
+    "memberStatus:odd@example.com": "definitely",
+    // Not a family member at all — a crafted field name can't add them.
+    "involved:stranger@example.com": "on",
     "memberStatus:stranger@example.com": "yes",
-    "memberStatus:ignored@example.com": NOT_INVOLVED,
-    "memberStatus:bogus@example.com": "definitely",
   };
-  const values = formValuesFromBody(body, null, ["member@example.com", "ignored@example.com"]);
+  const values = formValuesFromBody(body, null, [
+    "member@example.com",
+    "bystander@example.com",
+    "asked@example.com",
+    "odd@example.com",
+  ]);
 
-  assert.deepEqual(values.memberStatuses, { "member@example.com": "yes" });
+  assert.deepEqual(values.memberStatuses, {
+    "member@example.com": "yes",
+    "asked@example.com": "invited",
+    "odd@example.com": "invited",
+  });
 });
 
-test("guest rows survive a round trip and always offer spare rows", () => {
+test("an event round-trips into the form it was made from", () => {
   const attendees: Attendee[] = [
     { email: "a@example.com", name: null, status: "yes" },
     { email: null, name: "Aunt Jo", status: "maybe" },
@@ -156,18 +171,27 @@ test("guest rows survive a round trip and always offer spare rows", () => {
   const values = formValuesFromEvent(makeEvent({ attendees }));
 
   assert.deepEqual(values.memberStatuses, { "a@example.com": "yes" });
-  assert.equal(values.guests.length, 1 + SPARE_GUEST_ROWS);
-  assert.deepEqual(values.guests[0], { name: "Aunt Jo", status: "maybe" });
+  // No padding: the form adds guest rows on demand instead.
+  assert.deepEqual(values.guests, [{ name: "Aunt Jo", status: "maybe" }]);
   assert.equal(values.startDate, "2026-11-26");
   assert.equal(values.startTime, "14:00");
   assert.equal(values.categoryId, "holiday");
+});
 
-  // Clearing the name is how a guest is removed — the row just vanishes.
-  const cleared = formValuesFromBody({ "guestName:0": "   " }, "evt-1", []);
-  assert.deepEqual(
-    cleared.guests.filter((g) => g.name !== ""),
+test("guest rows parse with gaps, and a blank name drops the guest", () => {
+  // Clearing the name is how a guest is removed.
+  assert.deepEqual(formValuesFromBody({ "guestName:0": "   " }, "evt-1", []).guests, []);
+
+  // Removing a row in the browser leaves a hole in the indexes.
+  const sparse = formValuesFromBody(
+    { "guestName:0": "Aunt Jo", "guestName:3": "Cousin Pat", "guestStatus:3": "yes" },
+    null,
     [],
   );
+  assert.deepEqual(sparse.guests, [
+    { name: "Aunt Jo", status: "invited" },
+    { name: "Cousin Pat", status: "yes" },
+  ]);
 });
 
 test("groupAttendees orders answers yes, maybe, no, then unanswered", () => {
@@ -231,7 +255,7 @@ test("a blank form opens on a given day with workable default times", () => {
   assert.equal(onADay.allDay, false);
   assert.equal(onADay.title, "");
   assert.deepEqual(onADay.memberStatuses, {});
-  assert.equal(onADay.guests.length, SPARE_GUEST_ROWS);
+  assert.deepEqual(onADay.guests, []);
 
   // No date, or a junk one, just leaves the date fields empty.
   assert.equal(blankFormValues([]).startDate, "");

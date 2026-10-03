@@ -5,13 +5,7 @@
 <p class="error"><%= it.error %></p>
 <% } %>
 <form method="post" action="<%= it.values.id ? '/events/' + it.values.id : '/events' %>">
-  <%~ include("./_event-fields", {
-    values: it.values,
-    members: it.members,
-    categories: it.categories,
-    statuses: it.statuses,
-    notInvolved: it.notInvolved,
-  }) %>
+  <%~ include("./_event-fields", it) %>
 
   <button type="submit">Save</button>
 </form>

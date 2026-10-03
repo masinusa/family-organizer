@@ -1,11 +1,10 @@
 import { Router, type Request } from "express";
 import { parseMonthQuery, renderCalendarPage } from "../lib/calendar-page.js";
 import { listCategories, makeChipLookup, toChip } from "../lib/categories.js";
+import { eventFieldsData } from "../lib/event-fields.js";
 import {
-  NOT_INVOLVED,
   RSVP_LABELS,
   RSVP_STATUSES,
-  attendeeLabel,
   blankFormValues,
   formValuesFromBody,
   formValuesFromEvent,
@@ -16,6 +15,7 @@ import {
 } from "../lib/event-input.js";
 import * as eventsRepo from "../lib/events-repo.js";
 import { render } from "../lib/render.js";
+import { avatarFor } from "../lib/people.js";
 import * as usersRepo from "../lib/users-repo.js";
 import { isAdmin } from "../middleware/access-control.js";
 import type { RsvpStatus } from "../lib/types.js";
@@ -30,12 +30,8 @@ function chrome(req: Request): Record<string, unknown> {
 async function renderForm(req: Request, values: FormValues, error: string | null): Promise<string> {
   const [members, categories] = await Promise.all([usersRepo.listUsers(), listCategories()]);
   return render("event-form", {
-    values,
+    ...eventFieldsData(values, members, categories.map(toChip)),
     error,
-    members,
-    categories: categories.map(toChip),
-    statuses: RSVP_STATUSES.map((status) => ({ value: status, label: RSVP_LABELS[status] })),
-    notInvolved: NOT_INVOLVED,
     ...chrome(req),
   });
 }
@@ -115,7 +111,7 @@ eventsRouter.get("/events/:id", async (req, res, next) => {
         category: event.categoryId ? chipFor(event.categoryId) : null,
         groups: groupAttendees(event.attendees).map((group) => ({
           ...group,
-          names: group.people.map(attendeeLabel),
+          faces: group.people.map(avatarFor),
         })),
         yourStatus: you?.status ?? null,
         statuses: RSVP_STATUSES.map((status) => ({ value: status, label: RSVP_LABELS[status] })),

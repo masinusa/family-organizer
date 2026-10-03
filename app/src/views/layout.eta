@@ -116,8 +116,6 @@
         background: var(--surface);
         color: var(--ink);
       }
-      .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-top: 1rem; }
-      .checkbox-label input { width: auto; margin: 0; }
       button {
         margin-top: 1.5rem;
         padding: 0.6rem 1.3rem;
@@ -280,38 +278,290 @@
       .cal-event.spacer { visibility: hidden; }
       .cal-day-num { text-decoration: none; color: inherit; align-self: flex-start; }
 
-      /* --- event form --- */
-      .field-row { display: flex; gap: 0.75rem; }
-      .field-row > label { flex: 1 1 0; }
-      .field-row .time-field { flex: 0 0 8.5rem; }
+      /* --- event form -------------------------------------------------
+         Only the title and dates are open on arrival; everything else is a
+         <details> "sheet" whose closed row states what's inside. Keeps the
+         form the same height whether the family has three people or ten. */
+      .field-title {
+        width: 100%;
+        margin: 0 0 1rem;
+        padding: 0.3rem 0 0.5rem;
+        border: none;
+        border-bottom: 2px solid var(--border);
+        border-radius: 0;
+        background: none;
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 1.35rem;
+      }
+      .field-title::placeholder { color: var(--border); }
+      .field-title:focus-visible {
+        outline: none;
+        border-bottom-color: var(--primary);
+      }
+
+      .switch { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+      .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .switch-track {
+        width: 2.4rem;
+        height: 1.35rem;
+        padding: 0.15rem;
+        border-radius: 999px;
+        background: var(--border);
+        transition: background 0.18s ease;
+      }
+      .switch-knob {
+        display: block;
+        width: 1.05rem;
+        height: 1.05rem;
+        border-radius: 50%;
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(38, 41, 31, 0.25);
+        transition: transform 0.18s ease;
+      }
+      .switch:has(input:checked) .switch-track { background: var(--primary); }
+      .switch:has(input:checked) .switch-knob { transform: translateX(1.05rem); }
+      .switch:has(input:focus-visible) .switch-track { outline: 2px solid var(--primary); outline-offset: 2px; }
+      .switch-text { font-size: 0.85rem; font-weight: 700; }
+
+      .when { margin: 0.85rem 0 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+      .when-row { display: flex; align-items: center; gap: 0.6rem; }
+      .when-label {
+        flex: 0 0 2.5rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--muted);
+      }
+      .when-row input { margin-top: 0; }
+      .when-row input[type="date"] { flex: 1 1 auto; min-width: 0; }
+      .when-row input[type="time"] { flex: 0 0 7.5rem; }
       .time-field[hidden] { display: none; }
-      .pill-group { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.45rem; }
-      .pill {
+
+      .sheet {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        margin-bottom: 0.6rem;
+        overflow: hidden;
+      }
+      .sheet-head {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.7rem 0.9rem;
+        cursor: pointer;
+        list-style: none;
+        font-size: 0.85rem;
+      }
+      .sheet-head::-webkit-details-marker { display: none; }
+      .sheet-head:hover { background: color-mix(in srgb, var(--primary) 4%, var(--surface)); }
+      .sheet-name { font-weight: 700; white-space: nowrap; }
+      .sheet-value {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-left: auto;
+        min-width: 0;
+        color: var(--muted);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .sheet-chev {
+        flex-shrink: 0;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-right: 2px solid var(--muted);
+        border-bottom: 2px solid var(--muted);
+        transform: rotate(45deg) translate(-0.1rem, -0.1rem);
+        transition: transform 0.2s ease;
+      }
+      .sheet[open] .sheet-chev { transform: rotate(225deg) translate(-0.15rem, -0.15rem); }
+      .sheet[open] .sheet-head { border-bottom: 1px solid var(--border); }
+      .sheet-body {
+        padding: 0.85rem 0.9rem 1rem;
+        animation: sheet-open 0.22s ease both;
+      }
+      @keyframes sheet-open {
+        from { opacity: 0; transform: translateY(-0.4rem); }
+      }
+      .sheet-body > label:first-child { margin-top: 0; }
+      .sub { font-family: var(--font-head); font-size: 0.82rem; margin: 1.25rem 0 0.1rem; }
+
+      .dot {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      }
+      .dot-none { background: repeating-linear-gradient(45deg, var(--border) 0 2px, var(--surface) 2px 4px); }
+
+      .swatches { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .swatch-opt {
+        --swatch: var(--border);
+        --swatch-ink: var(--ink);
         display: inline-flex;
         align-items: center;
-        gap: 0.35rem;
+        gap: 0.4rem;
         margin: 0;
-        padding: 0.3rem 0.7rem;
+        padding: 0.35rem 0.75rem;
         border: 1px solid var(--border);
         border-radius: 999px;
         font-size: 0.8rem;
         font-weight: 700;
         cursor: pointer;
+        transition: transform 0.12s ease;
       }
-      .pill input { width: auto; margin: 0; }
-      .pill:has(input:checked) { outline: 2px solid var(--ink); outline-offset: 1px; }
-      .people { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
-      .person { display: flex; align-items: center; gap: 0.6rem; }
-      .person-name {
+      .swatch-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .swatch-opt:hover { transform: translateY(-1px); }
+      .swatch-opt:has(input:checked) {
+        background: var(--swatch);
+        border-color: var(--swatch);
+        color: var(--swatch-ink);
+      }
+      .swatch-opt:has(input:checked) .dot { display: none; }
+      .swatch-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+      .av {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 1.9rem;
+        height: 1.9rem;
+        border-radius: 50%;
+        background: var(--border);
+        color: var(--ink);
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 0.8rem;
+        line-height: 1;
+      }
+      .av-xs { width: 1.4rem; height: 1.4rem; font-size: 0.65rem; }
+      .guest-av { background: var(--bg); color: var(--muted); border: 1px dashed var(--border); }
+      /* Overlapping faces — reads as a group at a glance, in roster order. */
+      .stack { display: inline-flex; flex-shrink: 0; }
+      .stack .av + .av { margin-left: -0.45rem; }
+      .stack .av { box-shadow: 0 0 0 2px var(--surface); }
+
+      .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+      .roster-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.35rem 0.4rem;
+        border-radius: 8px;
+        transition: background 0.15s ease;
+      }
+      .roster-row:has(.involve:checked) { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+      .roster-who {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
         flex: 1 1 auto;
         min-width: 0;
-        font-size: 0.85rem;
+        margin: 0;
+        font-weight: 400;
+        cursor: pointer;
+      }
+      .roster-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+      .roster-name strong { font-size: 0.85rem; }
+      .roster-name small {
+        font-size: 0.72rem;
+        color: var(--muted);
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
       }
-      .person select { flex: 0 0 9.5rem; width: auto; margin-top: 0; }
-      .person input[type="text"] { flex: 1 1 auto; width: auto; min-width: 0; margin-top: 0; }
+      .involve {
+        appearance: none;
+        flex-shrink: 0;
+        width: 1.3rem;
+        height: 1.3rem;
+        margin: 0;
+        padding: 0;
+        border: 1.5px dashed var(--muted);
+        border-radius: 50%;
+        background: none;
+        cursor: pointer;
+        position: relative;
+      }
+      .involve::after {
+        content: "+";
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 0.9rem;
+        font-weight: 800;
+        color: var(--muted);
+        line-height: 1;
+      }
+      .involve:checked {
+        border: none;
+        background: var(--primary);
+      }
+      .involve:checked::after { content: "\2713"; color: #fff; font-size: 0.8rem; }
+      /* A member's response only matters once they're on the event. Scoped
+         to rows that have an involve box at all — a guest row has none, and
+         an unscoped :not() would hide every guest's response too. */
+      .roster-row:has(.involve):not(:has(.involve:checked)) .seg { display: none; }
+      .guest-row .guest-name { flex: 1 1 auto; width: auto; min-width: 0; margin-top: 0; }
+
+      .seg {
+        display: inline-flex;
+        flex-shrink: 0;
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--bg);
+      }
+      .seg-opt {
+        margin: 0;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+      .seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .seg-opt:has(input:checked) { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(38, 41, 31, 0.12); }
+      .seg-yes:has(input:checked) { background: var(--primary); color: #fff; }
+      .seg-maybe:has(input:checked) { background: var(--accent); color: #2b1c00; }
+      .seg-no:has(input:checked) { background: var(--danger); color: #fff; }
+      .seg-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+      .row-x {
+        flex-shrink: 0;
+        margin: 0;
+        padding: 0 0.35rem;
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .row-x:hover { color: var(--danger); }
+      .add-row {
+        margin-top: 0.55rem;
+        padding: 0.4rem 0.8rem;
+        background: none;
+        border: 1px dashed var(--border);
+        border-radius: 999px;
+        color: var(--primary);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+      .add-row:hover { border-color: var(--primary); }
+
+      @media (max-width: 26rem) {
+        .roster-row { flex-wrap: wrap; }
+        .seg { margin-left: 2.45rem; }
+      }
 
       /* --- event detail --- */
       .chip {
@@ -342,7 +592,24 @@
         border: 1px solid var(--border);
       }
       .rsvp-bar button.chosen { background: var(--primary); color: #fff; border-color: var(--primary); }
-      .group { margin: 0 0 0.4rem; font-size: 0.88rem; }
+      .group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.6rem; }
+      .group-label {
+        flex: 0 0 3.6rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: var(--border);
+        color: var(--ink);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-align: center;
+      }
+      /* Same status colours as the form's segmented control, but these are
+         plain spans, so they need their own rules. */
+      .group-label.seg-yes { background: var(--primary); color: #fff; }
+      .group-label.seg-maybe { background: var(--accent); color: #2b1c00; }
+      .group-label.seg-no { background: var(--danger); color: #fff; }
+      .group-label.seg-invited { background: var(--border); color: var(--muted); }
+      .face { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
       .created-by { font-size: 0.85rem; color: var(--muted); margin: 1.25rem 0 0; }
     </style>
   </head>

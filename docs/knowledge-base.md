@@ -147,6 +147,18 @@ don't rewrite — newest entry last in each section.
   `repeat(7, minmax(0, 1fr))`; the chips' own `overflow: hidden` +
   `text-overflow: ellipsis` then does the truncating.
 
+- **A `:not(:has(...))` rule matches elements that don't contain the thing
+  at all, which is rarely what you mean.** The roster in
+  `app/src/views/_event-fields.eta` hides a family member's response until
+  they're actually on the event, written as
+  `.roster-row:not(:has(.involve:checked)) .seg { display: none }`. Guest
+  rows share `.roster-row` but have no `.involve` checkbox — so the
+  `:has()` was false, the `:not()` was true, and every guest's response
+  control vanished. Fix is to require the control first:
+  `.roster-row:has(.involve):not(:has(.involve:checked))`. Worth assuming
+  any `:not(:has(x))` needs a matching `:has(x)` guard whenever the
+  selector covers more than one kind of row.
+
 ## Decisions
 
 - Chose native Cloud Run IAP over the older load-balancer + Serverless NEG +
@@ -223,6 +235,28 @@ don't rewrite — newest entry last in each section.
   on a modal submit falls through to the full form page with the values and
   the error, which is the existing behaviour and needs no extra code.
 
+- The event form collapses into **sheets**: only the title and dates are
+  open on arrival, and Category / Who's involved / Details are `<details>`
+  whose closed row states what's inside (the chosen colour, a stack of
+  faces and a count, "Nana's house · link · notes"). This is what keeps the
+  quick-add modal a single screen regardless of how many family members
+  exist — the roster scrolls inside its own sheet rather than stretching
+  the form. Guest rows are added on demand from a `<template>` instead of
+  rendering blank spares.
+- A family member is on an event because their `involved:<email>` checkbox
+  is ticked, not because a status field was submitted for them. The roster
+  renders a response control for everyone, so without that gate every
+  family member would be attached to every event. `memberStatus:<email>` is
+  only read once the gate is set, and both are still looked up per known
+  member — never by scanning submitted field names.
+- People get **deterministic avatars** (`app/src/lib/people.ts`): initial,
+  a colour hashed from the email or guest name, and a display name derived
+  from the email's local part ("mary.jane+cal@x.com" → "Mary Jane"). The
+  palette is deliberately all dark enough that every avatar takes white
+  text, so a roster reads as one set. The same faces appear on the form,
+  the collapsed summary and the event page, which is what makes "who will
+  be where" scannable rather than a list of addresses.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub
@@ -251,3 +285,10 @@ don't rewrite — newest entry last in each section.
   the form's `reset` event, because the quick-add modal calls
   `form.reset()` every time it opens and a reset lands *after* its own event
   fires (hence the `setTimeout(..., 0)`).
+- When JavaScript needs to show a copy of something the server already
+  rendered, **clone the element rather than rebuilding it**. The form's
+  collapsed "Who's involved" row clones each roster avatar into its face
+  stack, so it inherits the server's hashed colour for a saved person, the
+  dashed placeholder for a guest still being typed, and the live initial —
+  with no palette or hash duplicated into the browser. Rebuilding it from
+  `data-` attributes is what lost saved guests their colour the first time.
