@@ -6,6 +6,7 @@ import { requireFamilyMember } from "./middleware/access-control.js";
 import { accessDeniedRouter } from "./routes/access-denied.js";
 import { adminRouter } from "./routes/admin.js";
 import { eventsRouter } from "./routes/events.js";
+import { feedbackRouter } from "./routes/feedback.js";
 import { healthRouter } from "./routes/health.js";
 
 export function createApp() {
@@ -26,6 +27,7 @@ export function createApp() {
   app.use(express.static(publicDir));
   app.use(eventsRouter);
   app.use(adminRouter);
+  app.use(feedbackRouter);
 
   app.use(errorHandler);
 

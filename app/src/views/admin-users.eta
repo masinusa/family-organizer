@@ -3,6 +3,7 @@
 <h1>Family Members</h1>
 <% if (it.isAdmin) { %>
 <a class="new-btn" href="/admin/manage">Manage family members</a>
+<a class="new-btn" href="/admin/feedback">Review feedback</a>
 <% } else { %>
 <button class="new-btn" type="button" disabled title="You need admin access to manage family members.">Manage family members</button>
 <% } %>

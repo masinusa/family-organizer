@@ -161,6 +161,11 @@ don't rewrite — newest entry last in each section.
   Google Group can't be managed by API at all) and how (IAP's own IAM
   policy, not the Admin SDK).
 
+- Feedback is stored in a private Firestore collection and triaged by admins
+  in the app. Do not automatically create GitHub issues or send feedback by
+  email: free-text family feedback can contain PII, while Firestore stays
+  behind the existing IAP and app authorization boundary.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub

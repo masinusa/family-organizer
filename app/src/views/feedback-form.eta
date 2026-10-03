@@ -1,0 +1,25 @@
+<% layout("./layout") %>
+<p><a class="back" href="/">&larr; Back</a></p>
+<h1>Send feedback</h1>
+<p class="who">Tell us what would make Family Hub better. Feedback is shared with the family administrators.</p>
+<% if (it.submitted) { %>
+<p class="success" role="status">Thanks for your feedback.</p>
+<% } %>
+<% if (it.error) { %>
+<p class="error" role="alert"><%= it.error %></p>
+<% } %>
+<form method="post" action="/feedback">
+  <label>
+    Type
+    <select name="category">
+      <% it.categories.forEach(function (category) { %>
+      <option value="<%= category %>"><%= category.charAt(0).toUpperCase() + category.slice(1) %></option>
+      <% }) %>
+    </select>
+  </label>
+  <label>
+    Feedback
+    <textarea name="message" maxlength="2000" rows="7" required></textarea>
+  </label>
+  <button type="submit">Send feedback</button>
+</form>

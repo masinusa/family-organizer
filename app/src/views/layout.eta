@@ -187,6 +187,46 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .feedback-fab {
+        position: fixed;
+        right: 1.5rem;
+        bottom: 1.5rem;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.65rem 0.9rem;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 3px 12px rgba(38, 41, 31, 0.24);
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .feedback-fab:hover { background: #203c25; }
+      .feedback-fab svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 2; }
+      .success { color: var(--primary); font-weight: 600; }
+      .feedback-card { align-items: flex-start; }
+      .feedback-meta { color: var(--muted); font-size: 0.8rem; }
+      .feedback-message { margin: 0.6rem 0 0; white-space: pre-wrap; }
+      .feedback-card form.inline { margin: 0.75rem 0 0; }
+      .feedback-card form.inline select { display: inline-block; width: auto; margin: 0; }
+      .feedback-card form.inline button { margin: 0 0 0 0.4rem; padding: 0.45rem 1rem; font-size: 0.85rem; }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      @media (max-width: 30rem) {
+        .feedback-fab { right: 1rem; bottom: 1rem; }
+      }
     </style>
   </head>
   <body>
@@ -201,5 +241,11 @@
     </nav>
     <% } %>
     <div class="wrap"><%~ it.body %></div>
+    <% if (it.email) { %>
+    <a class="feedback-fab" href="/feedback" aria-label="Send feedback">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15a4 4 0 0 1-4 4H8l-4 3v-7a4 4 0 0 1-2-3.5v-5A4 4 0 0 1 6 3h10a4 4 0 0 1 4 4z" /></svg>
+      <span>Feedback</span>
+    </a>
+    <% } %>
   </body>
 </html>
