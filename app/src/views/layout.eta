@@ -32,6 +32,7 @@
       }
       .wrap { max-width: 34rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
       .wrap:has(.cal-grid) { max-width: 56rem; }
+      .wrap:has(.tree-canvas) { max-width: none; }
       .topnav {
         display: flex;
         align-items: center;
@@ -86,6 +87,7 @@
         color: var(--muted);
         cursor: not-allowed;
       }
+      .new-btn + .new-btn { margin-left: 0.5rem; }
       .card {
         display: flex;
         gap: 0.75rem;
@@ -187,6 +189,28 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .tree-canvas { position: relative; margin: 0 auto; }
+      .tree-svg { position: absolute; top: 0; left: 0; pointer-events: none; }
+      .tree-svg line { stroke: var(--border); stroke-width: 2; }
+      .person-card {
+        position: absolute;
+        width: 168px;
+        height: 68px;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 0.5rem 0.7rem;
+        box-shadow: 0 1px 3px rgba(38, 41, 31, 0.05);
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-decoration: none;
+        color: var(--ink);
+      }
+      .person-card .email-icon { color: var(--muted); font-weight: 400; flex-shrink: 0; }
+      .empty-state { color: var(--muted); }
     </style>
   </head>
   <body>

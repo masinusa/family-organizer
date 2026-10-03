@@ -9,16 +9,6 @@ export const adminRouter = Router();
 
 const VALID_ROLES: UserRole[] = ["admin", "member"];
 
-async function renderUsers(req: Request) {
-  const users = await usersRepo.listUsers();
-  return render("admin-users", {
-    users,
-    email: req.user?.email,
-    isAdmin: isAdmin(req),
-    active: "admin",
-  });
-}
-
 async function renderManage(req: Request, error: string | null) {
   const users = await usersRepo.listUsers();
   return render("admin-manage", {
@@ -29,14 +19,6 @@ async function renderManage(req: Request, error: string | null) {
     active: "admin",
   });
 }
-
-adminRouter.get("/admin", async (req, res, next) => {
-  try {
-    res.send(await renderUsers(req));
-  } catch (err) {
-    next(err);
-  }
-});
 
 adminRouter.get("/admin/manage", requireAdmin, async (req, res, next) => {
   try {

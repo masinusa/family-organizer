@@ -1,0 +1,67 @@
+<% layout("./layout") %>
+<p><a class="back" href="/tree/manage">&larr; Back to manage people</a></p>
+<h1>Edit <%= it.person.name %></h1>
+<% if (it.error) { %>
+<p class="error"><%= it.error %></p>
+<% } %>
+
+<form method="post" action="/tree/people/<%= it.person.id %>">
+  <label>
+    Name
+    <input type="text" name="name" value="<%= it.person.name %>" required />
+  </label>
+  <label>
+    Email (optional)
+    <input type="text" name="email" value="<%= it.person.email || '' %>" />
+  </label>
+  <button type="submit">Save</button>
+</form>
+
+<h2>Parents</h2>
+<p class="who">Choose up to 2. Ctrl/Cmd-click to select or deselect one.</p>
+<form method="post" action="/tree/people/<%= it.person.id %>/parents">
+  <select name="parentIds" multiple size="6">
+    <% it.people.filter(function (p) { return p.id !== it.person.id; }).forEach(function (p) { %>
+    <option value="<%= p.id %>" <%= it.person.parentIds.includes(p.id) ? "selected" : "" %>><%= p.name %></option>
+    <% }) %>
+  </select>
+  <button type="submit">Save parents</button>
+</form>
+
+<h2>Partners</h2>
+<% it.person.partnerIds.forEach(function (partnerId) { %>
+<% const partner = it.people.find(function (p) { return p.id === partnerId; }); %>
+<% if (partner) { %>
+<div class="card">
+  <div class="bar"></div>
+  <div>
+    <div><strong><%= partner.name %></strong></div>
+    <form class="inline" method="post" action="/tree/people/<%= it.person.id %>/partners/<%= partner.id %>/remove">
+      <button type="submit">Remove</button>
+    </form>
+  </div>
+</div>
+<% } %>
+<% }) %>
+
+<form method="post" action="/tree/people/<%= it.person.id %>/partners">
+  <label>
+    Add a partner
+    <select name="partnerId">
+      <% it.people.filter(function (p) { return p.id !== it.person.id && !it.person.partnerIds.includes(p.id); }).forEach(function (p) { %>
+      <option value="<%= p.id %>"><%= p.name %></option>
+      <% }) %>
+    </select>
+  </label>
+  <button type="submit">Add partner</button>
+</form>
+
+<div class="actions">
+  <form
+    method="post"
+    action="/tree/people/<%= it.person.id %>/delete"
+    onsubmit="return confirm('Remove <%= it.person.name %> from the tree? Their children will keep any other parent link, but lose this one.');"
+  >
+    <button type="submit">Delete person</button>
+  </form>
+</div>

@@ -7,6 +7,7 @@ import { accessDeniedRouter } from "./routes/access-denied.js";
 import { adminRouter } from "./routes/admin.js";
 import { eventsRouter } from "./routes/events.js";
 import { healthRouter } from "./routes/health.js";
+import { treeRouter } from "./routes/tree.js";
 
 export function createApp() {
   const app = express();
@@ -25,6 +26,7 @@ export function createApp() {
   app.use(requireFamilyMember);
   app.use(express.static(publicDir));
   app.use(eventsRouter);
+  app.use(treeRouter);
   app.use(adminRouter);
 
   app.use(errorHandler);

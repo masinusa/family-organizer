@@ -29,3 +29,18 @@ export interface UserDoc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface PersonDoc {
+  id: string;
+  name: string;
+  email: string | null;
+  parentIds: string[];
+  partnerIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PersonInput {
+  name: string;
+  email: string | null;
+}
