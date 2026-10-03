@@ -1,13 +1,51 @@
 <% layout("./layout") %>
 <p><a class="back" href="/">&larr; Back</a></p>
 <h1><%= it.event.title %></h1>
-<p><%= it.event.startAt.toLocaleString() %> &ndash; <%= it.event.endAt.toLocaleString() %></p>
+<% if (it.category) { %>
+<p>
+  <span class="chip" style="background: <%= it.category.color %>; color: <%= it.category.ink %>">
+    <%= it.category.name %>
+  </span>
+</p>
+<% } %>
+<p><%= it.when %></p>
 <% if (it.event.location) { %>
 <p><%= it.event.location %></p>
-<% } %> <% if (it.event.description) { %>
+<% } %>
+<% if (it.event.link) { %>
+<p><a href="<%= it.event.link %>" rel="noopener noreferrer" target="_blank"><%= it.event.link %></a></p>
+<% } %>
+<% if (it.event.description) { %>
 <p><%= it.event.description %></p>
 <% } %>
-<p class="who">Owner: <strong><%= it.event.createdBy %></strong></p>
+
+<% if (it.groups.length) { %>
+<h2>Who's involved</h2>
+<% it.groups.forEach(function (group) { %>
+<p class="group"><strong><%= group.label %>:</strong> <%= group.names.join(", ") %></p>
+<% }) %>
+<% } else { %>
+<h2>Who's involved</h2>
+<p class="hint">Nobody added yet.</p>
+<% } %>
+
+<div class="rsvp">
+  <p>Your response<%= it.yourStatus ? "" : " — you haven't answered yet" %></p>
+  <div class="rsvp-bar">
+    <% it.statuses.forEach(function (status) { %>
+    <% if (status.value !== "invited") { %>
+    <form method="post" action="/events/<%= it.event.id %>/rsvp">
+      <input type="hidden" name="status" value="<%= status.value %>" />
+      <button type="submit" class="<%= it.yourStatus === status.value ? "chosen" : "" %>">
+        <%= status.label %>
+      </button>
+    </form>
+    <% } %>
+    <% }) %>
+  </div>
+</div>
+
+<p class="created-by">Created by <strong><%= it.event.createdBy %></strong></p>
 
 <div class="actions">
   <a href="/events/<%= it.event.id %>/edit">Edit</a>

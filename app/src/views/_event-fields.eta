@@ -1,0 +1,168 @@
+<%
+  /*
+   * Every field of an event, shared by the full-page form
+   * (views/event-form.eta) and the quick-add modal on the calendar
+   * (views/calendar.eta) so the two can never drift apart. The caller
+   * supplies the surrounding <form> and its submit button.
+   *
+   * Expects: values, members, categories, statuses, notInvolved.
+   */
+%>
+<label>
+  Title
+  <input type="text" name="title" value="<%= it.values.title %>" required />
+</label>
+
+<label class="checkbox-label">
+  <input type="checkbox" name="allDay" id="all-day" <%= it.values.allDay ? "checked" : "" %> />
+  All day
+</label>
+
+<div class="field-row">
+  <label>
+    Starts
+    <input
+      type="date"
+      name="startDate"
+      id="start-date"
+      value="<%= it.values.startDate %>"
+      required
+    />
+  </label>
+  <label class="time-field">
+    Time
+    <input type="time" name="startTime" value="<%= it.values.startTime %>" />
+  </label>
+</div>
+<div class="field-row">
+  <label>
+    Ends
+    <input type="date" name="endDate" id="end-date" value="<%= it.values.endDate %>" />
+  </label>
+  <label class="time-field">
+    Time
+    <input type="time" name="endTime" value="<%= it.values.endTime %>" />
+  </label>
+</div>
+
+<h2>Category</h2>
+<div class="pill-group">
+  <label class="pill">
+    <input type="radio" name="categoryId" value="" <%= it.values.categoryId ? "" : "checked" %> />
+    None
+  </label>
+  <% it.categories.forEach(function (cat) { %>
+  <label class="pill" style="background: <%= cat.color %>; color: <%= cat.ink %>">
+    <input
+      type="radio"
+      name="categoryId"
+      value="<%= cat.id %>"
+      <%= it.values.categoryId === cat.id ? "checked" : "" %>
+    />
+    <%= cat.name %>
+  </label>
+  <% }) %>
+</div>
+
+<h2>Who's involved</h2>
+<div class="people">
+  <% it.members.forEach(function (member) { %>
+  <% const current = it.values.memberStatuses[member.email] || it.notInvolved; %>
+  <div class="person">
+    <span class="person-name"><%= member.email %></span>
+    <select name="memberStatus:<%= member.email %>" aria-label="Response for <%= member.email %>">
+      <option value="<%= it.notInvolved %>" <%= current === it.notInvolved ? "selected" : "" %>>
+        Not involved
+      </option>
+      <% it.statuses.forEach(function (status) { %>
+      <option value="<%= status.value %>" <%= current === status.value ? "selected" : "" %>>
+        <%= status.label %>
+      </option>
+      <% }) %>
+    </select>
+  </div>
+  <% }) %>
+</div>
+
+<h2>Other guests</h2>
+<p class="hint">
+  For relatives who don't have an account here. Clear a name to remove them.
+</p>
+<div class="people">
+  <% it.values.guests.forEach(function (guest, index) { %>
+  <div class="person">
+    <input
+      type="text"
+      name="guestName:<%= index %>"
+      value="<%= guest.name %>"
+      placeholder="Name"
+      aria-label="Guest name"
+    />
+    <select name="guestStatus:<%= index %>" aria-label="Response for this guest">
+      <% it.statuses.forEach(function (status) { %>
+      <option value="<%= status.value %>" <%= guest.status === status.value ? "selected" : "" %>>
+        <%= status.label %>
+      </option>
+      <% }) %>
+    </select>
+  </div>
+  <% }) %>
+</div>
+
+<h2>Details</h2>
+<label>
+  Location
+  <input type="text" name="location" value="<%= it.values.location %>" />
+</label>
+<label>
+  Link
+  <input
+    type="text"
+    name="link"
+    value="<%= it.values.link %>"
+    placeholder="maps.google.com/..."
+  />
+</label>
+<label>
+  Description
+  <textarea name="description" rows="4"><%= it.values.description %></textarea>
+</label>
+
+<script>
+  (function () {
+    var allDay = document.getElementById("all-day");
+    var timeFields = document.querySelectorAll(".time-field");
+    var startDate = document.getElementById("start-date");
+    var endDate = document.getElementById("end-date");
+
+    // An all-day event has no hours to pick, so the time inputs go away.
+    // They're still submitted; the server ignores them when all-day is set.
+    function syncTimeFields() {
+      for (var i = 0; i < timeFields.length; i += 1) {
+        timeFields[i].hidden = allDay.checked;
+      }
+    }
+    allDay.addEventListener("change", syncTimeFields);
+    syncTimeFields();
+
+    // The quick-add modal resets this form every time it opens; a reset
+    // lands after its event fires, so re-sync on the next tick.
+    var form = allDay.closest("form");
+    if (form) {
+      form.addEventListener("reset", function () {
+        setTimeout(syncTimeFields, 0);
+      });
+    }
+
+    function syncEndDate() {
+      endDate.min = startDate.value;
+      if (!endDate.value || endDate.value < startDate.value) {
+        endDate.value = startDate.value;
+      }
+    }
+    startDate.addEventListener("change", syncEndDate);
+    if (startDate.value) {
+      endDate.min = startDate.value;
+    }
+  })();
+</script>

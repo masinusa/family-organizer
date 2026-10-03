@@ -7,8 +7,13 @@
   replace the placeholder in `app/` with a real app skeleton, and add auth
   middleware that reads the IAP identity header (`X-Goog-IAP-JWT-Assertion`)
   rather than building any login flow.
-- [ ] **Calendar CRUD** — build the shared calendar: create/edit/delete
-  events, an attendee list, RSVP.
+- [x] **Calendar CRUD** — create/edit/delete events on a month grid, with
+  attendees and RSVP: an event carries family members (from the `users`
+  collection) and free-text guests, each with an `invited`/`yes`/`maybe`/`no`
+  response, plus a colour category, a location, a link and a description.
+  Multi-day events span every day they cover, and a colour legend beside the
+  grid lets any family member add a category. See the Decisions entries in
+  `docs/knowledge-base.md` for the data model and why it's shaped that way.
 - [ ] **Notifications and recurrence** — recurring events (RRULE),
   reminders/notifications for upcoming events.
 - [x] **Custom domain** — `spicers.family` mapped via Cloud Run Domain

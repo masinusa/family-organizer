@@ -5,6 +5,7 @@ import { iapAuth } from "./middleware/iap-auth.js";
 import { requireFamilyMember } from "./middleware/access-control.js";
 import { accessDeniedRouter } from "./routes/access-denied.js";
 import { adminRouter } from "./routes/admin.js";
+import { categoriesRouter } from "./routes/categories.js";
 import { eventsRouter } from "./routes/events.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -25,6 +26,7 @@ export function createApp() {
   app.use(requireFamilyMember);
   app.use(express.static(publicDir));
   app.use(eventsRouter);
+  app.use(categoriesRouter);
   app.use(adminRouter);
 
   app.use(errorHandler);

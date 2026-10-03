@@ -124,6 +124,29 @@ don't rewrite — newest entry last in each section.
   confirmed both work via direct `curl`, though `gcloud`'s own `--log-http`
   output uses the number.
 
+- **Firestore can't range-filter two different fields in one query** without
+  a composite index (and the ordering constraints that come with it), which
+  is what a "show every event overlapping this month" query naturally wants
+  (`startAt < monthEnd AND endAt >= monthStart`). `events-repo.ts`'s
+  `listInRange` pushes only the `startAt` bound down to Firestore and applies
+  the `endAt` bound in memory — no composite index, nothing to add to
+  `firestore.tf`. That trades a little over-fetching (every event starting
+  before the month shown) for not maintaining an index, which is the right
+  way round at family-calendar scale; revisit if the collection ever holds
+  thousands of events. The symptom this fixed: a trip that began in November
+  was invisible on December's grid, because the old query matched on
+  `startAt` alone.
+
+- **A CSS grid's `1fr` floors at its content's width, so one long event
+  title widened its whole calendar column.** `grid-template-columns:
+  repeat(7, 1fr)` in `app/src/views/layout.eta` looks like "seven equal
+  columns" but `1fr` is `minmax(auto, 1fr)` — the `auto` minimum is the
+  largest unbreakable content in that column, so a cell containing
+  "Thanksgiving at Nana's" pushed Thursday wide and squeezed the other six.
+  Only visible once events had colour-filled chips. Fix is
+  `repeat(7, minmax(0, 1fr))`; the chips' own `overflow: hidden` +
+  `text-overflow: ellipsis` then does the truncating.
+
 ## Decisions
 
 - Chose native Cloud Run IAP over the older load-balancer + Serverless NEG +
@@ -161,6 +184,45 @@ don't rewrite — newest entry last in each section.
   Google Group can't be managed by API at all) and how (IAP's own IAM
   policy, not the Admin SDK).
 
+- Events now carry people, a colour category, and a link. Attendees are an
+  array of `{email, name, status}` maps on the event doc — `email` set for a
+  family member (matching a `users` doc id), `name` set for an off-app guest
+  (extended family with no account), and `status` one of
+  `invited|yes|maybe|no`. Deliberately denormalised onto the event rather
+  than a subcollection or join collection: the only query needed is "render
+  this event", and a family event has single-digit attendees. A member's own
+  response is also settable in one tap from the event page
+  (`POST /events/:id/rsvp`), which only ever writes the caller's own status —
+  the email comes from the verified IAP identity, never the form.
+- Event categories are **built-ins in code plus custom docs in Firestore**
+  (`DEFAULT_CATEGORIES` in `app/src/lib/categories.ts`, collection
+  `categories`). Keeping the defaults in code means no seeding step, no
+  empty-state, and nothing to restore if the collection is wiped. An event
+  stores only the category id, and `resolveCategory` falls back to a neutral
+  colour for an unknown/absent id — which is what makes deleting a category
+  safe without touching a single event doc. Adding one is open to every
+  family member, not admin-gated: whoever is planning the trip should be
+  able to label it. Colours are validated to `#rrggbb` on the way in *and*
+  on the way out of Firestore, because they're interpolated into `style`
+  attributes.
+- The month grid now spans a multi-day event across every day it covers
+  (superseding the start-day-only note above), and packs each week's events
+  into fixed rows so a running bar keeps the same row all week. The `null`
+  entries in `CalendarDay.events` are deliberate: they hold a row open on a
+  day where an earlier event has ended, without which the bar visibly jumps
+  up a line and stops reading as one continuous run.
+
+- Clicking any empty part of a day cell opens a **quick-add modal** on that
+  day, rather than navigating to the form page. To avoid a second,
+  divergent copy of the event form, every field lives in one partial
+  (`app/src/views/_event-fields.eta`) included by both `event-form.eta` (the
+  full page) and `calendar.eta` (the modal) — so `renderCalendarPage` has to
+  load the member list and categories too. The day number stays a real link
+  to `/events/new?date=...` as the no-JavaScript path, and the click handler
+  suppresses it; event chips keep their own navigation. A validation failure
+  on a modal submit falls through to the full form page with the values and
+  the error, which is the existing behaviour and needs no extra code.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub
@@ -170,3 +232,22 @@ don't rewrite — newest entry last in each section.
 - The budget alert is notify-only (email at 50/90/100% of spend), not a
   hard spending cap. Scale-to-zero Cloud Run and no load balancer are what
   actually bound cost.
+- Multi-row form sections that need adding/removing rows without
+  JavaScript follow the `guestName:<i>` / `guestStatus:<i>` convention in
+  `app/src/lib/event-input.ts`: the form always renders a few blank spare
+  rows, parsing skips rows with a blank name, and **clearing a row's name is
+  how you delete it**. Indexes are positional and re-numbered on every
+  render, so never treat them as stable ids.
+- Anything a family member types that ends up inside an HTML attribute needs
+  validating for *shape*, not just escaping. Two live examples: category
+  colours must match `#rrggbb` before reaching a `style` attribute, and an
+  event's link must parse to an `http:`/`https:` URL before reaching an
+  `href` — Eta's `<%=` escaping alone would happily emit
+  `href="javascript:..."`.
+- `_event-fields.eta` carries its own `<script>` (the all-day/time-field
+  toggle) and uses fixed element ids (`all-day`, `start-date`, `end-date`).
+  That's safe only because no page includes it twice — if one ever needs to,
+  those ids have to become per-instance first. Its script also re-syncs on
+  the form's `reset` event, because the quick-add modal calls
+  `form.reset()` every time it opens and a reset lands *after* its own event
+  fires (hence the `setTimeout(..., 0)`).

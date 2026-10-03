@@ -31,12 +31,12 @@
         -webkit-font-smoothing: antialiased;
       }
       .wrap { max-width: 34rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
-      .wrap:has(.cal-grid) { max-width: 56rem; }
+      .wrap:has(.cal-layout) { max-width: 64rem; }
       .topnav {
         display: flex;
         align-items: center;
         gap: 1.25rem;
-        max-width: 56rem;
+        max-width: 64rem;
         margin: 0 auto;
         padding: 1rem 1.5rem;
         border-bottom: 1px solid var(--border);
@@ -101,7 +101,9 @@
       .when { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
       label { display: block; font-size: 0.85rem; font-weight: 700; margin-top: 1rem; }
       input[type="text"],
-      input[type="datetime-local"],
+      input[type="date"],
+      input[type="time"],
+      input[type="color"],
       textarea,
       select {
         display: block;
@@ -146,7 +148,9 @@
       }
       .cal-grid {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
+        /* minmax(0, 1fr), not 1fr: a plain 1fr floors at the content's own
+           width, so one long event title would widen its whole column. */
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 1px;
         background: var(--border);
         border: 1px solid var(--border);
@@ -169,6 +173,8 @@
         flex-direction: column;
         gap: 0.2rem;
       }
+      /* The whole cell opens a new event on that day (see calendar.eta). */
+      .cal-cell { cursor: pointer; }
       .cal-cell.other-month { background: var(--bg); }
       .cal-cell.other-month .cal-day-num { color: var(--muted); }
       .cal-cell.today { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); box-shadow: inset 0 0 0 2px var(--primary); }
@@ -187,6 +193,157 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+
+      /* --- calendar page: grid + legend sidebar --- */
+      .cal-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 13.5rem;
+        gap: 1.25rem;
+        align-items: start;
+      }
+      @media (max-width: 52rem) {
+        .cal-layout { grid-template-columns: 1fr; }
+      }
+      .legend {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 0.9rem 1rem;
+        box-shadow: 0 1px 3px rgba(38, 41, 31, 0.05);
+      }
+      .legend h2 { margin: 0 0 0.6rem; font-size: 0.9rem; }
+      .legend ul {
+        list-style: none;
+        margin: 0 0 0.85rem;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+      .legend li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+      .swatch {
+        width: 0.85rem;
+        height: 0.85rem;
+        border-radius: 3px;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      }
+      .legend-add {
+        width: 100%;
+        margin-top: 0;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        background: var(--surface);
+        color: var(--primary);
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+      }
+      .hint { font-size: 0.78rem; font-weight: 400; color: var(--muted); margin: 0.35rem 0 0; }
+
+      dialog {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--ink);
+        padding: 1.25rem;
+        max-width: 22rem;
+        width: calc(100% - 2rem);
+      }
+      dialog::backdrop { background: rgba(38, 41, 31, 0.45); }
+      dialog h2 { margin-top: 0; }
+      /* The quick-add modal holds the whole event form, so it scrolls
+         inside itself rather than growing past the viewport. */
+      dialog.dialog-wide { max-width: 32rem; max-height: 85vh; overflow-y: auto; }
+      dialog.dialog-wide h2 { font-size: 1.1rem; }
+      .color-row { display: flex; gap: 0.6rem; align-items: flex-end; margin-top: 0.35rem; }
+      .color-row input[type="color"] { width: 3.25rem; height: 2.5rem; padding: 0.2rem; margin-top: 0; }
+      .color-row input[type="text"] { margin-top: 0; }
+      .dialog-actions { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1.25rem; }
+      .dialog-actions button { margin-top: 0; }
+      .btn-quiet {
+        background: var(--surface);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        font-weight: 700;
+      }
+
+      /* A multi-day event bleeds over the 1px grid gap so it reads as one
+         continuous bar; .cal-grid's overflow:hidden clips it at week edges. */
+      .cal-event.spans { border-radius: 0; }
+      .cal-event.spans.is-start { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+      .cal-event.spans.is-end { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+      .cal-event.spans:not(.is-start) { margin-left: -0.45rem; }
+      .cal-event.spans:not(.is-end) { margin-right: -0.45rem; }
+      .cal-event-count { opacity: 0.75; font-weight: 800; }
+      /* Holds a row open so a neighbouring day's bar stays on one line. */
+      .cal-event.spacer { visibility: hidden; }
+      .cal-day-num { text-decoration: none; color: inherit; align-self: flex-start; }
+
+      /* --- event form --- */
+      .field-row { display: flex; gap: 0.75rem; }
+      .field-row > label { flex: 1 1 0; }
+      .field-row .time-field { flex: 0 0 8.5rem; }
+      .time-field[hidden] { display: none; }
+      .pill-group { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.45rem; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin: 0;
+        padding: 0.3rem 0.7rem;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .pill input { width: auto; margin: 0; }
+      .pill:has(input:checked) { outline: 2px solid var(--ink); outline-offset: 1px; }
+      .people { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+      .person { display: flex; align-items: center; gap: 0.6rem; }
+      .person-name {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 0.85rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .person select { flex: 0 0 9.5rem; width: auto; margin-top: 0; }
+      .person input[type="text"] { flex: 1 1 auto; width: auto; min-width: 0; margin-top: 0; }
+
+      /* --- event detail --- */
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+      .rsvp {
+        margin-top: 1.25rem;
+        padding: 0.85rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .rsvp p { margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 700; }
+      .rsvp-bar { display: flex; gap: 0.5rem; }
+      .rsvp-bar form { display: inline; margin: 0; }
+      .rsvp-bar button {
+        margin-top: 0;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      .rsvp-bar button.chosen { background: var(--primary); color: #fff; border-color: var(--primary); }
+      .group { margin: 0 0 0.4rem; font-size: 0.88rem; }
+      .created-by { font-size: 0.85rem; color: var(--muted); margin: 1.25rem 0 0; }
     </style>
   </head>
   <body>
