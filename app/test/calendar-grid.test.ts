@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildMonthGrid } from "../src/lib/calendar-grid.js";
-import { defaultNewEventDate } from "../src/lib/calendar-page.js";
+import { defaultNewEventDate, safeCalendarReturn } from "../src/lib/calendar-page.js";
 import type { EventDoc } from "../src/lib/types.js";
 
 function makeEvent(overrides: Partial<EventDoc> = {}): EventDoc {
@@ -194,4 +194,22 @@ test('"+ New event" opens on a day that is actually on screen', () => {
   // Looking at any other month: its 1st, never an off-screen date.
   assert.deepEqual(defaultNewEventDate(2026, 11, today), new Date(2026, 10, 1));
   assert.deepEqual(defaultNewEventDate(2025, 10, today), new Date(2025, 9, 1));
+});
+
+test("only the calendar itself is accepted as a return path", () => {
+  assert.equal(safeCalendarReturn("/"), "/");
+  assert.equal(safeCalendarReturn("/?year=2026&month=11"), "/?year=2026&month=11");
+  // Rebuilt from the parsed numbers, so nothing rides along in the query.
+  assert.equal(safeCalendarReturn("/?year=2026&month=07"), "/?year=2026&month=7");
+
+  // Anything that could send a reader off-site, or anywhere else at all.
+  assert.equal(safeCalendarReturn("//evil.example.com"), null);
+  assert.equal(safeCalendarReturn("https://evil.example.com"), null);
+  assert.equal(safeCalendarReturn("/admin/manage"), null);
+  assert.equal(safeCalendarReturn("/?year=2026&month=11&next=/admin"), null);
+  assert.equal(safeCalendarReturn("/?year=2026&month=13"), null);
+  assert.equal(safeCalendarReturn("/?year=1800&month=1"), null);
+  assert.equal(safeCalendarReturn(""), null);
+  assert.equal(safeCalendarReturn(undefined), null);
+  assert.equal(safeCalendarReturn(["/"]), null);
 });

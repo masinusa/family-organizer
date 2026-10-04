@@ -1,0 +1,84 @@
+<%
+  /*
+   * One event's details, shared by the full page (views/event-detail.eta)
+   * and by GET /events/:id/card, which the calendar fetches into a modal so
+   * opening an event never navigates away from the month you were reading.
+   *
+   * `returnTo` is where the Edit and Delete actions should land — the
+   * calendar month the reader came from, already validated by
+   * safeCalendarReturn().
+   */
+%>
+<h1><%= it.event.title %></h1>
+<% if (it.category) { %>
+<p>
+  <span class="chip" style="background: <%= it.category.color %>; color: <%= it.category.ink %>">
+    <%= it.category.name %>
+  </span>
+</p>
+<% } %>
+<p><%= it.when %></p>
+<% if (it.event.location) { %>
+<p><%= it.event.location %></p>
+<% } %>
+<% if (it.event.link) { %>
+<p><a href="<%= it.event.link %>" rel="noopener noreferrer" target="_blank"><%= it.event.link %></a></p>
+<% } %>
+<% if (it.event.description) { %>
+<p><%= it.event.description %></p>
+<% } %>
+
+<h2>Who's involved</h2>
+<% if (it.groups.length) { %>
+<% it.groups.forEach(function (group) { %>
+<div class="group">
+  <span class="group-label seg-<%= group.status %>"><%= group.label %></span>
+  <% group.faces.forEach(function (face) { %>
+  <span class="face" title="<%= face.sub || face.label %>">
+    <span class="av" style="background: <%= face.color %>; color: <%= face.ink %>"><%= face.initial %></span>
+    <%= face.label %>
+  </span>
+  <% }) %>
+</div>
+<% }) %>
+<% } else { %>
+<p class="hint">Nobody added yet.</p>
+<% } %>
+
+<div class="rsvp">
+  <p>Your response<%= it.yourStatus && it.yourStatus !== "invited" ? "" : " — you haven't answered yet" %></p>
+  <div class="rsvp-bar">
+    <% it.statuses.forEach(function (status) { %>
+    <% if (status.value !== "invited") { %>
+    <% const chosen = it.yourStatus === status.value; %>
+    <form method="post" action="/events/<%= it.event.id %>/rsvp">
+      <input type="hidden" name="status" value="<%= chosen ? "invited" : status.value %>" />
+      <% if (it.returnTo) { %>
+      <input type="hidden" name="return" value="<%= it.returnTo %>" />
+      <% } %>
+      <button type="submit" class="<%= chosen ? "chosen" : "" %>">
+        <%= status.label %>
+      </button>
+    </form>
+    <% } %>
+    <% }) %>
+  </div>
+  <p class="hint">Tap your answer again to clear it.</p>
+</div>
+
+<p class="created-by">Created by <strong><%= it.event.createdBy %></strong></p>
+
+<div class="actions">
+  <a href="/events/<%= it.event.id %>/edit<%= it.returnQuery %>">Edit</a>
+  <form
+    class="inline"
+    method="post"
+    action="/events/<%= it.event.id %>/delete"
+    onsubmit="return confirm('Delete this event?');"
+  >
+    <% if (it.returnTo) { %>
+    <input type="hidden" name="return" value="<%= it.returnTo %>" />
+    <% } %>
+    <button type="submit">Delete</button>
+  </form>
+</div>

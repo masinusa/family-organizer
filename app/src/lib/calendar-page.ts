@@ -24,6 +24,31 @@ export function parseMonthQuery(query: Request["query"], now = new Date()): Mont
 }
 
 /**
+ * Where a form should send the reader back to. Only the calendar itself,
+ * optionally at a month — the value is re-built from parsed numbers rather
+ * than echoed, so nothing else (an absolute URL, a protocol-relative
+ * "//somewhere", a path with a fragment) can ride along.
+ */
+export function safeCalendarReturn(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const match = /^\/(?:\?year=(\d{1,4})&month=(\d{1,2}))?$/.exec(raw);
+  if (!match) {
+    return null;
+  }
+  if (!match[1]) {
+    return "/";
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (year < 1970 || year > 2200 || month < 1 || month > 12) {
+    return null;
+  }
+  return `/?year=${year}&month=${month}`;
+}
+
+/**
  * What day the "+ New event" button opens the quick-add modal on: today
  * when today is in the month being looked at, otherwise the 1st of it —
  * never a date that isn't on screen.
@@ -68,6 +93,8 @@ export async function renderCalendarPage(
     attendeeSummary,
     dateInput: formatDateInput,
     defaultDate: formatDateInput(defaultNewEventDate(year, month)),
+    /** This very month — where the modals send the reader back to. */
+    returnTo: `/?year=${year}&month=${month}`,
     nameMax: CATEGORY_NAME_MAX,
     // Quick-add modal — the same fields as the full-page form.
     ...eventFieldsData(

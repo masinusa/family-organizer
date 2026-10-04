@@ -69,9 +69,87 @@
   </aside>
 </div>
 
+<dialog id="view-dialog" class="dialog-wide">
+  <button class="dialog-x" type="button" id="close-view" aria-label="Close">&times;</button>
+  <div id="view-body"></div>
+</dialog>
+
+<script>
+  (function () {
+    var dialog = document.getElementById("view-dialog");
+    var body = document.getElementById("view-body");
+    <%
+      /* Raw, not <%= %>: that escapes "&" and a <script> body is raw text
+         the parser never decodes, so the query would arrive mangled. The
+         value is built server-side from two numbers, never from input. */
+    %>
+    var returnTo = <%~ JSON.stringify(it.returnTo) %>;
+    var cardUrl = null;
+
+    document.getElementById("close-view").addEventListener("click", function () {
+      dialog.close();
+    });
+
+    function load(url, open) {
+      return fetch(url, { headers: { "X-Requested-With": "fetch" } })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("card " + response.status);
+          }
+          return response.text();
+        })
+        .then(function (html) {
+          body.innerHTML = html;
+          if (open && !dialog.open) {
+            dialog.showModal();
+          }
+          dialog.scrollTop = 0;
+        });
+    }
+
+    // Opening an event must not lose the month being read, so the card is
+    // fetched into this modal instead of navigating. If anything about that
+    // fails, fall back to the real page rather than swallowing the click.
+    document.addEventListener("click", function (clickEvent) {
+      var chip = clickEvent.target.closest("a.cal-event");
+      if (!chip) {
+        return;
+      }
+      clickEvent.preventDefault();
+      cardUrl = chip.getAttribute("href") + "/card?return=" + encodeURIComponent(returnTo);
+      load(cardUrl, true).catch(function () {
+        window.location.href = chip.getAttribute("href");
+      });
+    });
+
+    // Answering or deleting from inside the modal posts in place, so the
+    // calendar underneath never reloads out from under the reader.
+    body.addEventListener("submit", function (submitEvent) {
+      var form = submitEvent.target;
+      submitEvent.preventDefault();
+      // No confirm here: the card's own onsubmit already asked, and a
+      // submit event only fires at all once it returned true.
+      var deleting = form.action.indexOf("/delete") !== -1;
+      fetch(form.action, { method: "POST", body: new URLSearchParams(new FormData(form)) })
+        .then(function () {
+          if (deleting) {
+            dialog.close();
+            window.location.reload();
+            return null;
+          }
+          return load(cardUrl, false);
+        })
+        .catch(function () {
+          window.location.reload();
+        });
+    });
+  })();
+</script>
+
 <dialog id="event-dialog" class="dialog-wide">
   <h2 id="event-dialog-title">New event</h2>
   <form method="post" action="/events">
+    <input type="hidden" name="return" value="<%= it.returnTo %>" />
     <%~ include("./_event-fields", it) %>
     <div class="dialog-actions">
       <button class="btn-quiet" type="button" id="cancel-event">Cancel</button>

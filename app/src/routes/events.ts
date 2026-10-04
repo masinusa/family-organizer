@@ -1,5 +1,5 @@
 import { Router, type Request } from "express";
-import { parseMonthQuery, renderCalendarPage } from "../lib/calendar-page.js";
+import { parseMonthQuery, renderCalendarPage, safeCalendarReturn } from "../lib/calendar-page.js";
 import { listCategories, makeChipLookup, toChip } from "../lib/categories.js";
 import { eventFieldsData } from "../lib/event-fields.js";
 import {
@@ -29,9 +29,11 @@ function chrome(req: Request): Record<string, unknown> {
 
 async function renderForm(req: Request, values: FormValues, error: string | null): Promise<string> {
   const [members, categories] = await Promise.all([usersRepo.listUsers(), listCategories()]);
+  const returnTo = safeCalendarReturn(req.query.return ?? req.body?.return);
   return render("event-form", {
     ...eventFieldsData(values, members, categories.map(toChip)),
     error,
+    returnTo,
     ...chrome(req),
   });
 }
@@ -86,7 +88,50 @@ eventsRouter.post("/events", async (req, res, next) => {
       return;
     }
     const id = await eventsRepo.create(parsed, req.user!.email);
-    res.redirect(`/events/${id}`);
+    // Made from the calendar's quick-add modal: go back to the month it was
+    // added to, where it now shows, rather than to a page of its own.
+    res.redirect(safeCalendarReturn(req.body.return) ?? `/events/${id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function cardData(req: Request, eventId: string): Promise<Record<string, unknown> | null> {
+  const [event, categories] = await Promise.all([eventsRepo.get(eventId), listCategories()]);
+  if (!event) {
+    return null;
+  }
+  const chipFor = makeChipLookup(categories);
+  const you = event.attendees.find((a) => a.email === req.user?.email);
+  const returnTo = safeCalendarReturn(req.query.return);
+  return {
+    event,
+    when: formatEventWhen(event),
+    category: event.categoryId ? chipFor(event.categoryId) : null,
+    groups: groupAttendees(event.attendees).map((group) => ({
+      ...group,
+      faces: group.people.map(avatarFor),
+    })),
+    yourStatus: you?.status ?? null,
+    statuses: RSVP_STATUSES.map((status) => ({ value: status, label: RSVP_LABELS[status] })),
+    returnTo,
+    returnQuery: returnTo ? `?return=${encodeURIComponent(returnTo)}` : "",
+  };
+}
+
+/**
+ * The card on its own, with no page around it. The calendar fetches this
+ * into a modal so opening an event doesn't navigate away from the month
+ * being read — the full page below stays the direct-link and no-JS route.
+ */
+eventsRouter.get("/events/:id/card", async (req, res, next) => {
+  try {
+    const data = await cardData(req, req.params.id);
+    if (!data) {
+      res.status(404).send("Event not found");
+      return;
+    }
+    res.send(render("_event-card", data));
   } catch (err) {
     next(err);
   }
@@ -94,30 +139,12 @@ eventsRouter.post("/events", async (req, res, next) => {
 
 eventsRouter.get("/events/:id", async (req, res, next) => {
   try {
-    const [event, categories] = await Promise.all([
-      eventsRepo.get(req.params.id),
-      listCategories(),
-    ]);
-    if (!event) {
+    const data = await cardData(req, req.params.id);
+    if (!data) {
       res.status(404).send("Event not found");
       return;
     }
-    const chipFor = makeChipLookup(categories);
-    const you = event.attendees.find((a) => a.email === req.user?.email);
-    res.send(
-      render("event-detail", {
-        event,
-        when: formatEventWhen(event),
-        category: event.categoryId ? chipFor(event.categoryId) : null,
-        groups: groupAttendees(event.attendees).map((group) => ({
-          ...group,
-          faces: group.people.map(avatarFor),
-        })),
-        yourStatus: you?.status ?? null,
-        statuses: RSVP_STATUSES.map((status) => ({ value: status, label: RSVP_LABELS[status] })),
-        ...chrome(req),
-      }),
-    );
+    res.send(render("event-detail", { ...data, ...chrome(req) }));
   } catch (err) {
     next(err);
   }
@@ -144,7 +171,7 @@ eventsRouter.post("/events/:id", async (req, res, next) => {
       return;
     }
     await eventsRepo.update(req.params.id, parsed);
-    res.redirect(`/events/${req.params.id}`);
+    res.redirect(safeCalendarReturn(req.body.return) ?? `/events/${req.params.id}`);
   } catch (err) {
     next(err);
   }
@@ -172,7 +199,14 @@ eventsRouter.post("/events/:id/rsvp", async (req, res, next) => {
       res.status(404).send("Event not found");
       return;
     }
-    res.redirect(`/events/${req.params.id}`);
+    // Back to the event, keeping any return path so its Back link still
+    // points at the month the reader came from.
+    const returnTo = safeCalendarReturn(req.body.return);
+    res.redirect(
+      returnTo
+        ? `/events/${req.params.id}?return=${encodeURIComponent(returnTo)}`
+        : `/events/${req.params.id}`,
+    );
   } catch (err) {
     next(err);
   }
@@ -181,7 +215,7 @@ eventsRouter.post("/events/:id/rsvp", async (req, res, next) => {
 eventsRouter.post("/events/:id/delete", async (req, res, next) => {
   try {
     await eventsRepo.deleteEvent(req.params.id);
-    res.redirect("/");
+    res.redirect(safeCalendarReturn(req.body.return) ?? "/");
   } catch (err) {
     next(err);
   }

@@ -254,6 +254,23 @@
          inside itself rather than growing past the viewport. */
       dialog.dialog-wide { max-width: 32rem; max-height: 85vh; overflow-y: auto; }
       dialog.dialog-wide h2 { font-size: 1.1rem; }
+      dialog.dialog-wide { position: relative; }
+      .dialog-x {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.7rem;
+        margin: 0;
+        padding: 0.2rem 0.4rem;
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.4rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .dialog-x:hover { color: var(--ink); }
+      #view-body h1 { font-size: 1.25rem; padding-right: 1.5rem; }
+      #view-body .actions { margin-bottom: 0; }
       .color-row { display: flex; gap: 0.6rem; align-items: flex-end; margin-top: 0.35rem; }
       .color-row input[type="color"] { width: 3.25rem; height: 2.5rem; padding: 0.2rem; margin-top: 0; }
       .color-row input[type="text"] { margin-top: 0; }

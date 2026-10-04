@@ -159,6 +159,27 @@ don't rewrite — newest entry last in each section.
   any `:not(:has(x))` needs a matching `:has(x)` guard whenever the
   selector covers more than one kind of row.
 
+- **Eta's `<%= %>` XML-escapes, and a `<script>` body is raw text the HTML
+  parser never decodes — so escaped output arrives in JavaScript mangled.**
+  `var returnTo = <%= JSON.stringify(it.returnTo) %>;` in
+  `app/src/views/calendar.eta` emitted
+  `&quot;/?year=2026&amp;month=11&quot;`, which is a syntax error, not a
+  string. Inside a `<script>` the interpolation has to be `<%~ %>` (raw),
+  which in turn means only ever interpolating values the server built
+  itself — here a path assembled from two parsed numbers. Values with no
+  special characters (a `YYYY-MM-DD`, an integer) survive `<%= %>` by luck,
+  which is what makes this easy to miss.
+- **A stale `tsx watch` process can hold :3000 and silently serve old
+  code.** `scripts/dev-local.sh` starts the server with `nohup` and records
+  one PID, but killing that PID doesn't always take the watcher's child
+  with it; the next run then fails with `EADDRINUSE` *in the log* while the
+  script still reports "Running at http://localhost:3000" — because
+  something is indeed answering. Symptom is changes that don't appear and
+  new routes returning Express's default HTML 404. Check
+  `tail /tmp/family-organizer-dev.log` before debugging the code, and clear
+  it with `pkill -f "tsx watch src/server.ts"` plus
+  `lsof -ti:3000 | xargs kill -9`.
+
 ## Decisions
 
 - Chose native Cloud Run IAP over the older load-balancer + Serverless NEG +
@@ -257,6 +278,28 @@ don't rewrite — newest entry last in each section.
   the collapsed summary and the event page, which is what makes "who will
   be where" scannable rather than a list of addresses.
 
+- Opening an event on the calendar **fetches its card into a modal**
+  rather than navigating, because leaving the page lost whichever month was
+  being read — the point of the calendar is looking ahead.
+  `views/_event-card.eta` is shared by `GET /events/:id` (the full page,
+  still the direct-link and no-JS route) and `GET /events/:id/card`, which
+  returns the same markup with no layout. Answering or deleting inside the
+  modal posts with `fetch` and re-renders the card in place, so the grid
+  underneath never reloads.
+- Flows that genuinely do leave the calendar — Edit, and saving a new event
+  from the quick-add modal — carry a `return` path back to the month they
+  started from, validated by `safeCalendarReturn()` in `lib/calendar-page.ts`.
+  That helper only accepts the calendar itself with an optional month, and
+  **re-builds the string from the parsed numbers rather than echoing the
+  input**, so nothing can ride along in a redirect.
+- Tapping the response you already gave clears it: the button posts
+  `invited` ("on the event, hasn't answered") instead of its own status.
+  Entirely a view decision — `POST /events/:id/rsvp` already accepted every
+  status, so no route or repo change was needed. Clearing deliberately
+  leaves you *on* the event rather than removing you, which keeps an
+  invitation someone else extended; coming off an event entirely is a tap
+  on your row in the edit form's roster.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub
@@ -292,3 +335,9 @@ don't rewrite — newest entry last in each section.
   dashed placeholder for a guest still being typed, and the live initial —
   with no palette or hash duplicated into the browser. Rebuilding it from
   `data-` attributes is what lost saved guests their colour the first time.
+- A form that may be submitted both normally and through `fetch` should
+  keep its `onsubmit="return confirm(...)"` and **not** re-ask in the
+  JavaScript handler: a `submit` event only fires once the inline handler
+  has returned true, so confirming in both places prompts twice. The delete
+  form in `_event-card.eta` works this way — guarded on the full page,
+  guarded once in the modal.
