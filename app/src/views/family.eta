@@ -1,0 +1,67 @@
+<% layout("./layout") %>
+<h1>Our Family</h1>
+<% if (it.cards.length === 0) { %>
+<p class="empty-state">
+  No one's on the tree yet.<% if (it.isAdmin) { %> <a href="/family/new">Add the first person</a> to get started.<% } %>
+</p>
+<% } else { %>
+<p class="who">
+  <%= it.cards.length %> <%= it.cards.length === 1 ? "person" : "people" %> &middot;
+  <%= it.cards.filter(function (c) { return c.hasAccount; }).length %> can sign in
+</p>
+<div class="tree-scroll">
+  <div
+    class="tree-canvas"
+    style="width: <%= it.layout.width %>px; height: <%= it.layout.height %>px; --card-w: <%= it.layout.cardWidth %>px; --card-h: <%= it.layout.cardHeight %>px; --card-expand-w: <%= it.layout.cardExpandedWidth %>px;"
+  >
+    <svg class="tree-svg" width="<%= it.layout.width %>" height="<%= it.layout.height %>" aria-hidden="true">
+      <% it.layout.connectors.forEach(function (line) { %>
+      <path class="tree-line tree-line-<%= line.kind %>" d="<%= line.d %>" />
+      <% }) %>
+      <% it.layout.connectors.forEach(function (line) { %>
+      <% if (line.kind === "partner") { %>
+      <text class="tree-heart" x="<%= line.markX %>" y="<%= line.markY %>">&#9825;</text>
+      <% } %>
+      <% }) %>
+    </svg>
+    <% it.cards.forEach(function (card) { %>
+    <a
+      class="person-card<%= card.isYou ? " is-you" : "" %><%= card.anchorRight ? " anchor-right" : "" %>"
+      href="/family/<%= card.person.id %>"
+      style="<%= card.anchorRight ? "right: " + card.rightInset : "left: " + card.x %>px; top: <%= card.y %>px;"
+    >
+      <span class="monogram" style="background: <%= card.swatch.tint %>; color: <%= card.swatch.ink %>;"
+        ><%= card.initials %></span
+      >
+      <span class="person-meta">
+        <span class="person-name"><%= card.person.name %></span>
+        <% if (card.person.blurb) { %>
+        <span class="person-blurb"><%= card.person.blurb %></span>
+        <% } %>
+        <% if (card.birthday || card.person.birthYear) { %>
+        <span class="person-bday">
+          <% if (card.birthday) { %>&#127874; <%= card.birthday %><% } %>
+          <% if (card.person.birthYear) { %><span class="person-year">Born <%= card.person.birthYear %></span><% } %>
+        </span>
+        <% } %>
+        <% if (card.account) { %>
+        <span class="person-extra"><%= card.account.email %></span>
+        <% } %>
+      </span>
+      <% if (card.isYou) { %>
+      <span class="you-pill">you</span>
+      <% } %>
+      <% if (card.hasAccount) { %>
+      <span class="account-dot" title="Can sign in"></span>
+      <% } %>
+    </a>
+    <% }) %>
+  </div>
+</div>
+<% } %>
+<% if (it.isAdmin) { %>
+<p class="tree-admin-links">
+  <a href="/family/new">+ Add someone</a> &middot;
+  <a href="/family/accounts">Who can sign in</a>
+</p>
+<% } %>

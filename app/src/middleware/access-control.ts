@@ -14,10 +14,11 @@ function forbidden(res: Response, message: string): void {
 }
 
 /**
- * Runs immediately after iapAuth. Passing IAP only proves someone's in the
- * family Google Group — it does not grant app access. An admin must have
- * explicitly added a Firestore doc for this email via the /admin page (or
- * the seed script) before they can use anything past this point.
+ * Runs immediately after iapAuth. Passing IAP only proves Google let them
+ * to the door — it does not grant app access. An admin must have
+ * explicitly added a Firestore doc for this email (via a person's page or
+ * /family/accounts, or the seed script) before they can use anything past
+ * this point.
  */
 export async function requireFamilyMember(req: Request, res: Response, next: NextFunction): Promise<void> {
   const appUser = await usersRepo.getUser(req.user!.email);

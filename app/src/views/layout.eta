@@ -18,6 +18,9 @@
         --primary: #2f5233;
         --accent: #c98a2c;
         --danger: #b3261e;
+        /* Connector lines: deliberately darker than --border, which is
+           the card outline — sharing that token made the tree vanish. */
+        --line: #bdb6a2;
         --radius: 10px;
         --font-head: "Manrope", system-ui, sans-serif;
         --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -32,7 +35,10 @@
       }
       .wrap { max-width: 34rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
       .wrap:has(.cal-grid) { max-width: 56rem; }
-      .wrap:has(.tree-canvas) { max-width: none; }
+      /* The tree earns more room than a reading column. The nav is widened
+         to match so the two stay aligned on this page. */
+      .wrap:has(.tree-scroll) { max-width: 90rem; }
+      body:has(.tree-scroll) .topnav { max-width: 90rem; }
       .topnav {
         display: flex;
         align-items: center;
@@ -103,6 +109,7 @@
       .when { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
       label { display: block; font-size: 0.85rem; font-weight: 700; margin-top: 1rem; }
       input[type="text"],
+      input[type="number"],
       input[type="datetime-local"],
       textarea,
       select {
@@ -136,6 +143,8 @@
       .actions { margin-top: 1.5rem; display: flex; gap: 0.75rem; align-items: center; }
       .actions a { font-size: 0.9rem; font-weight: 700; text-decoration: none; }
       .actions button { margin-top: 0; padding: 0.45rem 1rem; background: var(--danger); color: #fff; font-size: 0.85rem; }
+      /* Non-destructive action sharing a row with a destructive one. */
+      .actions button.safe-btn { background: var(--accent); color: #2b1c00; }
       .cal-header { display: flex; align-items: center; justify-content: space-between; margin: 0 0 0.75rem; }
       .cal-nav-group { display: flex; align-items: center; gap: 0.75rem; }
       .cal-title { margin: 0; }
@@ -189,28 +198,204 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      /* A wide tree scrolls inside its own box rather than pushing the
+         page sideways, so the nav stays aligned with the content.
+         overflow-x makes overflow-y compute to auto, so the bottom
+         padding is what gives a hover-expanded card on the last row room
+         to grow without being clipped. */
+      .tree-scroll { overflow-x: auto; padding: 0.5rem 0 7rem; }
       .tree-canvas { position: relative; margin: 0 auto; }
       .tree-svg { position: absolute; top: 0; left: 0; pointer-events: none; }
-      .tree-svg line { stroke: var(--border); stroke-width: 2; }
+      .tree-line { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
+      .tree-line-partner { stroke: var(--accent); stroke-dasharray: 5 4; opacity: 0.75; }
+      .tree-heart {
+        fill: var(--accent);
+        font-size: 13px;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
       .person-card {
         position: absolute;
-        width: 168px;
-        height: 68px;
+        width: var(--card-w);
+        height: var(--card-h);
         display: flex;
         align-items: center;
-        gap: 0.4rem;
+        gap: 0.6rem;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 0.5rem 0.7rem;
-        box-shadow: 0 1px 3px rgba(38, 41, 31, 0.05);
-        font-weight: 700;
-        font-size: 0.85rem;
+        border-radius: 14px;
+        padding: 0.6rem 0.75rem;
+        box-shadow: 0 1px 3px rgba(38, 41, 31, 0.06);
         text-decoration: none;
         color: var(--ink);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
       }
-      .person-card .email-icon { color: var(--muted); font-weight: 400; flex-shrink: 0; }
+      /* Hovering (or tabbing to) a card expands it in place to show the
+         details the fixed-size card has to truncate. Cards are absolutely
+         positioned, so growing one never reflows the others. */
+      .person-card:hover,
+      .person-card:focus-visible {
+        height: auto;
+        min-height: var(--card-h);
+        /* Grows to fit its content instead of breaking an email across
+           lines, capped so a long blurb still wraps. Cards near the right
+           edge are pinned by that edge (see .anchor-right), so they grow
+           leftward and never off the end of the tree. */
+        width: max-content;
+        min-width: var(--card-w);
+        max-width: var(--card-expand-w);
+        z-index: 5;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(38, 41, 31, 0.16);
+        border-color: var(--muted);
+      }
+      .person-card:hover .person-name,
+      .person-card:focus-visible .person-name,
+      .person-card:hover .person-blurb,
+      .person-card:focus-visible .person-blurb {
+        overflow: visible;
+        white-space: normal;
+      }
+      .person-card:hover .person-extra,
+      .person-card:focus-visible .person-extra {
+        display: block;
+      }
+      .person-card.is-you { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201, 138, 44, 0.18); }
+      .monogram {
+        flex-shrink: 0;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 0.9rem;
+        letter-spacing: 0.02em;
+      }
+      .monogram-lg { width: 62px; height: 62px; font-size: 1.25rem; }
+      .person-meta { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+      .person-name {
+        font-family: var(--font-head);
+        font-weight: 700;
+        font-size: 0.9rem;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .person-blurb {
+        font-size: 0.75rem;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .person-bday {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0 0.45rem;
+        font-size: 0.72rem;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .person-extra {
+        display: none;
+        margin-top: 0.15rem;
+        /* Right padding keeps the text clear of the "you" pill, which is
+           absolutely positioned in the card's bottom-right corner. */
+        padding: 0.25rem 2.4rem 0 0;
+        border-top: 1px dashed var(--border);
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--muted);
+        /* A long address breaks rather than spilling out of the card. */
+        overflow-wrap: anywhere;
+      }
+      .account-dot {
+        position: absolute;
+        top: 0.55rem;
+        right: 0.55rem;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+      .you-pill {
+        position: absolute;
+        bottom: 0.5rem;
+        right: 0.55rem;
+        font-size: 0.65rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+      }
+      .person-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+      .person-head h1 { margin: 0 0 0.2rem; }
+      .person-head .person-blurb { white-space: normal; font-size: 0.9rem; }
+      .person-head .who { margin: 0.2rem 0 0; }
+      /* Separators come from CSS so the parts stay individually escaped
+         and a missing piece never leaves a dangling middot. */
+      .meta-line { display: flex; flex-wrap: wrap; gap: 0 0.4rem; }
+      .meta-line span + span::before { content: "·"; margin-right: 0.4rem; color: var(--border); }
+      .tree-admin-links { font-size: 0.85rem; color: var(--muted); margin-top: 1.5rem; }
+      .tree-admin-links a { font-weight: 700; text-decoration: none; }
       .empty-state { color: var(--muted); }
+      .warning {
+        color: #7a4b00;
+        background: #fdf3df;
+        border: 1px solid #e8d4a8;
+        border-radius: var(--radius);
+        padding: 0.6rem 0.8rem;
+        font-weight: 600;
+      }
+      .flag { color: var(--danger); font-weight: 700; }
+      .field-row { display: flex; gap: 0.5rem; }
+      .field-row select { margin-top: 0; }
+      .field-hint { margin: 0.4rem 0 0; font-size: 0.78rem; }
+      .year-input { max-width: 8rem; font-variant-numeric: tabular-nums; }
+      .swatches { border: none; padding: 0; margin: 1rem 0 0; }
+      .swatches legend { font-size: 0.85rem; font-weight: 700; padding: 0; }
+      .swatch { display: inline-block; margin: 0.4rem 0.4rem 0 0; cursor: pointer; }
+      .swatch input { position: absolute; opacity: 0; width: 0; height: 0; }
+      .swatch span {
+        display: block;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 2px solid transparent;
+      }
+      .swatch input:checked + span { border-width: 3px; transform: scale(1.1); }
+      .swatch input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+      .account-form { margin-top: 1rem; }
+      .link-state {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.4rem;
+        margin-top: 0.75rem;
+        padding: 0.7rem 0.9rem;
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--muted);
+        border-radius: var(--radius);
+        background: var(--surface);
+        font-size: 0.88rem;
+      }
+      .link-state.is-linked { border-left-color: var(--primary); }
+      .link-state span { color: var(--muted); }
+      .or-divider { margin: 0.9rem 0 0; font-style: italic; }
+      .link-btn {
+        margin-top: 0.6rem;
+        padding: 0;
+        background: none;
+        color: var(--muted);
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-decoration: underline;
+      }
+      .link-btn:hover { color: var(--danger); }
     </style>
   </head>
   <body>
@@ -219,7 +404,7 @@
       <a class="topnav-brand" href="/">Family Hub</a>
       <div class="topnav-links">
         <a href="/" class="<%= it.active === "calendar" ? "active" : "" %>">Calendar</a>
-        <a href="/admin" class="<%= it.active === "admin" ? "active" : "" %>">Family</a>
+        <a href="/family" class="<%= it.active === "family" ? "active" : "" %>">Family</a>
       </div>
       <div class="topnav-user"><%= it.email %></div>
     </nav>

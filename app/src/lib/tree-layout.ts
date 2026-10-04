@@ -1,30 +1,53 @@
 import type { PersonDoc } from "./types.js";
 
-export const CARD_WIDTH = 168;
-export const CARD_HEIGHT = 68;
-export const COL_GAP = 28;
-export const ROW_GAP = 88;
+export const CARD_WIDTH = 184;
+export const CARD_HEIGHT = 92;
+export const COL_GAP = 24;
+export const ROW_GAP = 96;
+
+/**
+ * How wide a card may grow when hovered. Lives here rather than only in
+ * CSS because the layout has to know how much room an expansion needs in
+ * order to decide which edge a card should grow from.
+ */
+export const CARD_EXPANDED_WIDTH = 272;
+
+/** Elbow rounding, clamped per-corner so short runs can't overshoot. */
+const CORNER = 12;
 
 export interface PersonCard {
   person: PersonDoc;
   generation: number;
+  /** Left-to-right ordering rank, not a pixel grid slot — see computeXPositions. */
   column: number;
   x: number;
   y: number;
+  /**
+   * Distance from the card's right edge to the canvas's right edge. A card
+   * with less slack than a hover expansion needs is pinned by its right
+   * edge instead, so it grows inward rather than off the end of the tree.
+   */
+  rightInset: number;
+  anchorRight: boolean;
 }
 
-export interface TreeLine {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+export interface TreeConnector {
+  /** SVG path data — rounded elbows rather than hard right angles. */
+  d: string;
+  kind: "parent" | "partner";
+  /** Midpoint of a partner link, where the heart sits. */
+  markX?: number;
+  markY?: number;
 }
 
 export interface TreeLayout {
   cards: PersonCard[];
-  connectors: TreeLine[];
+  connectors: TreeConnector[];
   width: number;
   height: number;
+  cardWidth: number;
+  cardHeight: number;
+  cardExpandedWidth: number;
 }
 
 /**
@@ -151,9 +174,8 @@ export function computeColumns(people: PersonDoc[]): Map<string, number> {
   for (const root of roots) {
     placeFamilyUnit(root.id);
   }
-  // Safety net for data the relaxation loop above didn't reach (shouldn't
-  // happen given parentIds always reference real people, but keeps this
-  // function total).
+  // Safety net for anyone the root walk didn't reach (e.g. a parent id
+  // pointing at a deleted person), so this function stays total.
   for (const p of [...people].sort(byNameThenId)) {
     placeFamilyUnit(p.id);
   }
@@ -161,28 +183,170 @@ export function computeColumns(people: PersonDoc[]): Map<string, number> {
   return column;
 }
 
+function sameMembers(a: string[], b: string[]): boolean {
+  if (a.length !== b.length || a.length === 0) return false;
+  const set = new Set(b);
+  return a.every((id) => set.has(id));
+}
+
+/**
+ * Turns the DFS *ordering* from computeColumns into actual x positions.
+ *
+ * computeColumns alone gives every person a globally unique column, so an
+ * only child drifts a column further right in each generation and a tree
+ * gets much wider than it needs to be. Here each generation instead packs
+ * from the left independently, and parents are centred over the children
+ * they already placed — a cut-down Reingold-Tilford pass.
+ *
+ * Generations are walked deepest-first, which guarantees every child has a
+ * position before its parents need one. That holds even when a parent sits
+ * more than one generation above its child, which computeGenerations
+ * allows (a child lands one row below its *deepest* parent).
+ */
+export function computeXPositions(
+  people: PersonDoc[],
+  gen: Map<string, number>,
+  order: Map<string, number>,
+): Map<string, number> {
+  const stride = CARD_WIDTH + COL_GAP;
+  const byId = new Map(people.map((p) => [p.id, p]));
+
+  const childrenOf = new Map<string, string[]>();
+  for (const person of people) {
+    for (const parentId of person.parentIds) {
+      if (!childrenOf.has(parentId)) childrenOf.set(parentId, []);
+      childrenOf.get(parentId)!.push(person.id);
+    }
+  }
+
+  const rows = new Map<number, string[]>();
+  for (const person of people) {
+    const g = gen.get(person.id)!;
+    if (!rows.has(g)) rows.set(g, []);
+    rows.get(g)!.push(person.id);
+  }
+  for (const row of rows.values()) {
+    row.sort((a, b) => order.get(a)! - order.get(b)!);
+  }
+
+  const x = new Map<string, number>();
+
+  /** Midpoint of the already-placed children, or null if none are. */
+  function childCenter(ids: string[]): number | null {
+    const centers = ids.filter((id) => x.has(id)).map((id) => x.get(id)! + CARD_WIDTH / 2);
+    if (centers.length === 0) return null;
+    return (Math.min(...centers) + Math.max(...centers)) / 2;
+  }
+
+  const generations = Array.from(rows.keys()).sort((a, b) => b - a);
+  for (const g of generations) {
+    const row = rows.get(g)!;
+    // Left edge the next card may occupy, so a centred parent can never
+    // land on top of the neighbour already placed to its left.
+    let cursor = 0;
+    let i = 0;
+
+    while (i < row.length) {
+      const id = row[i]!;
+      const kids = childrenOf.get(id) ?? [];
+      const nextId = row[i + 1];
+
+      // A couple raising the same children is centred as a single unit,
+      // so the pair straddles its children rather than one partner
+      // hogging the centre and shoving the other off to the side.
+      const asCouple =
+        nextId !== undefined &&
+        byId.get(id)!.partnerIds.includes(nextId) &&
+        sameMembers(kids, childrenOf.get(nextId) ?? []);
+
+      if (asCouple) {
+        const center = childCenter(kids);
+        const desired = center === null ? cursor : center - (stride + CARD_WIDTH) / 2;
+        const left = Math.max(desired, cursor);
+        x.set(id, left);
+        x.set(nextId!, left + stride);
+        cursor = left + 2 * stride;
+        i += 2;
+      } else {
+        const center = childCenter(kids);
+        const desired = center === null ? cursor : center - CARD_WIDTH / 2;
+        const left = Math.max(desired, cursor);
+        x.set(id, left);
+        cursor = left + stride;
+        i += 1;
+      }
+    }
+  }
+
+  // Centring can push a row left of zero; slide everything back flush.
+  const minX = Math.min(...x.values());
+  if (minX !== 0) {
+    for (const [id, value] of x) x.set(id, value - minX);
+  }
+  return x;
+}
+
+/**
+ * One path from the parents' trunk, along the bus, and down to a child,
+ * with the turn rounded. Emitting a single path per child (rather than
+ * separate bus + stub segments) is what lets the corner be curved at all.
+ */
+function childElbow(anchorX: number, busY: number, childX: number, childTop: number): string {
+  if (childX === anchorX) {
+    return `M ${anchorX} ${busY} L ${childX} ${childTop}`;
+  }
+  const dir = childX > anchorX ? 1 : -1;
+  const r = Math.min(CORNER, Math.abs(childX - anchorX), Math.abs(childTop - busY));
+  return [
+    `M ${anchorX} ${busY}`,
+    `L ${childX - dir * r} ${busY}`,
+    `Q ${childX} ${busY} ${childX} ${busY + r}`,
+    `L ${childX} ${childTop}`,
+  ].join(" ");
+}
+
 export function buildTreeLayout(people: PersonDoc[]): TreeLayout {
   if (people.length === 0) {
-    return { cards: [], connectors: [], width: 0, height: 0 };
+    return {
+      cards: [],
+      connectors: [],
+      width: 0,
+      height: 0,
+      cardWidth: CARD_WIDTH,
+      cardHeight: CARD_HEIGHT,
+      cardExpandedWidth: CARD_EXPANDED_WIDTH,
+    };
   }
 
   const gen = compactGenerations(computeGenerations(people));
+  // computeColumns supplies the left-to-right *ordering* within each row;
+  // computeXPositions turns that into compact, parent-centred positions.
   const column = computeColumns(people);
+  const xs = computeXPositions(people, gen, column);
+
+  const contentWidth = Math.max(...xs.values()) + CARD_WIDTH;
+  const growth = CARD_EXPANDED_WIDTH - CARD_WIDTH;
 
   const cards: PersonCard[] = people.map((person) => {
     const generation = gen.get(person.id)!;
-    const col = column.get(person.id)!;
+    const x = xs.get(person.id)!;
+    const rightInset = contentWidth - (x + CARD_WIDTH);
     return {
       person,
       generation,
-      column: col,
-      x: col * (CARD_WIDTH + COL_GAP),
+      column: column.get(person.id)!,
+      x,
       y: generation * (CARD_HEIGHT + ROW_GAP),
+      rightInset,
+      // Only flip when growing right would run off the tree AND there is
+      // room to grow left instead, so a lone card never gets pushed
+      // negative.
+      anchorRight: rightInset < growth && x >= growth,
     };
   });
 
   const cardById = new Map(cards.map((c) => [c.person.id, c]));
-  const connectors: TreeLine[] = [];
+  const connectors: TreeConnector[] = [];
 
   const seenPairs = new Set<string>();
   for (const card of cards) {
@@ -192,11 +356,16 @@ export function buildTreeLayout(people: PersonDoc[]): TreeLayout {
       seenPairs.add(key);
       const partnerCard = cardById.get(partnerId);
       if (!partnerCard) continue;
+      const [left, right] = card.x <= partnerCard.x ? [card, partnerCard] : [partnerCard, card];
+      const x1 = left.x + CARD_WIDTH;
+      const y1 = left.y + CARD_HEIGHT / 2;
+      const x2 = right.x;
+      const y2 = right.y + CARD_HEIGHT / 2;
       connectors.push({
-        x1: card.x + CARD_WIDTH,
-        y1: card.y + CARD_HEIGHT / 2,
-        x2: partnerCard.x,
-        y2: partnerCard.y + CARD_HEIGHT / 2,
+        d: `M ${x1} ${y1} L ${x2} ${y2}`,
+        kind: "partner",
+        markX: (x1 + x2) / 2,
+        markY: (y1 + y2) / 2,
       });
     }
   }
@@ -216,23 +385,41 @@ export function buildTreeLayout(people: PersonDoc[]): TreeLayout {
       .filter((c): c is PersonCard => !!c);
     if (parentCards.length === 0) continue;
 
+    const parentCenters = parentCards.map((c) => c.x + CARD_WIDTH / 2);
     const parentBottom = Math.max(...parentCards.map((c) => c.y)) + CARD_HEIGHT;
     const busY = parentBottom + ROW_GAP / 2;
+    const anchorX = (Math.min(...parentCenters) + Math.max(...parentCenters)) / 2;
 
+    // Each parent drops onto the bus at its own x...
     for (const p of parentCards) {
-      connectors.push({ x1: p.x + CARD_WIDTH / 2, y1: p.y + CARD_HEIGHT, x2: p.x + CARD_WIDTH / 2, y2: busY });
+      const px = p.x + CARD_WIDTH / 2;
+      connectors.push({ d: `M ${px} ${p.y + CARD_HEIGHT} L ${px} ${busY}`, kind: "parent" });
+    }
+    // ...joined along the bus when there's more than one of them.
+    if (parentCards.length > 1) {
+      connectors.push({
+        d: `M ${Math.min(...parentCenters)} ${busY} L ${Math.max(...parentCenters)} ${busY}`,
+        kind: "parent",
+      });
     }
 
-    const busXs = [...parentCards, ...children].map((c) => c.x + CARD_WIDTH / 2);
-    connectors.push({ x1: Math.min(...busXs), y1: busY, x2: Math.max(...busXs), y2: busY });
-
     for (const c of children) {
-      connectors.push({ x1: c.x + CARD_WIDTH / 2, y1: busY, x2: c.x + CARD_WIDTH / 2, y2: c.y });
+      connectors.push({
+        d: childElbow(anchorX, busY, c.x + CARD_WIDTH / 2, c.y),
+        kind: "parent",
+      });
     }
   }
 
-  const width = Math.max(...cards.map((c) => c.x)) + CARD_WIDTH;
   const height = Math.max(...cards.map((c) => c.y)) + CARD_HEIGHT;
 
-  return { cards, connectors, width, height };
+  return {
+    cards,
+    connectors,
+    width: contentWidth,
+    height,
+    cardWidth: CARD_WIDTH,
+    cardHeight: CARD_HEIGHT,
+    cardExpandedWidth: CARD_EXPANDED_WIDTH,
+  };
 }

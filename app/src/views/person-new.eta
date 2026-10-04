@@ -1,0 +1,21 @@
+<% layout("./layout") %>
+<p><a class="back" href="/family">&larr; Back to the tree</a></p>
+<h1>Add someone</h1>
+<% if (it.error) { %>
+<p class="error"><%= it.error %></p>
+<% } %>
+<p class="who">
+  Just a name is enough &mdash; relatives who never had an email belong here too. You can set
+  relationships and everything else on their page afterwards.
+</p>
+<form method="post" action="/family/people">
+  <label>
+    Name
+    <input type="text" name="name" required />
+  </label>
+  <label>
+    Email (optional)
+    <input type="text" name="email" placeholder="name@example.com" />
+  </label>
+  <button type="submit">Add</button>
+</form>

@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
-import type { PersonDoc, PersonInput } from "./types.js";
+import { normalizeEmail } from "./email.js";
+import type { PersonDoc, PersonaInput } from "./types.js";
 
 const peopleCollection = () => firestore.collection("people");
 
@@ -9,6 +10,11 @@ function toPersonDoc(id: string, data: DocumentData): PersonDoc {
     id,
     name: data.name,
     email: data.email ?? null,
+    blurb: data.blurb ?? null,
+    birthMonth: data.birthMonth ?? null,
+    birthDay: data.birthDay ?? null,
+    birthYear: data.birthYear ?? null,
+    color: data.color ?? null,
     parentIds: data.parentIds ?? [],
     partnerIds: data.partnerIds ?? [],
     createdAt: (data.createdAt as Timestamp).toDate(),
@@ -26,11 +32,16 @@ export async function getPerson(id: string): Promise<PersonDoc | null> {
   return snap.exists ? toPersonDoc(snap.id, snap.data()!) : null;
 }
 
-export async function createPerson(input: PersonInput): Promise<PersonDoc> {
+export async function createPerson(name: string, email: string | null): Promise<PersonDoc> {
   const now = Timestamp.now();
   const data = {
-    name: input.name,
-    email: input.email,
+    name,
+    email: email ? normalizeEmail(email) : null,
+    blurb: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    color: null,
     parentIds: [] as string[],
     partnerIds: [] as string[],
     createdAt: now,
@@ -40,10 +51,27 @@ export async function createPerson(input: PersonInput): Promise<PersonDoc> {
   return toPersonDoc(ref.id, data);
 }
 
-export async function updatePerson(id: string, input: PersonInput): Promise<void> {
+/** The self-service fields — see canEditPersona for who may call this. */
+export async function updatePersona(id: string, input: PersonaInput): Promise<void> {
   await peopleCollection().doc(id).update({
     name: input.name,
-    email: input.email,
+    blurb: input.blurb,
+    birthMonth: input.birthMonth,
+    birthDay: input.birthDay,
+    birthYear: input.birthYear,
+    color: input.color,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+/**
+ * Admin-only, and separate from the persona: changing this email is what
+ * links or unlinks the person from a sign-in account (lib/family-link.ts),
+ * so it is normalized to match how `users` doc ids are keyed.
+ */
+export async function setEmail(id: string, email: string | null): Promise<void> {
+  await peopleCollection().doc(id).update({
+    email: email ? normalizeEmail(email) : null,
     updatedAt: Timestamp.now(),
   });
 }
@@ -145,7 +173,8 @@ export const peopleRepo = {
   listPeople,
   getPerson,
   createPerson,
-  updatePerson,
+  updatePersona,
+  setEmail,
   setParents,
   addPartner,
   removePartner,

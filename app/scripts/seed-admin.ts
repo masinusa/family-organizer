@@ -6,5 +6,8 @@ if (!email) {
   process.exit(1);
 }
 
-const user = await createUser(email, "admin");
+const { user, iapFailed } = await createUser(email, "admin");
 console.log(`Admin ready: ${user.email} (role=${user.role})`);
+if (iapFailed) {
+  console.error("Warning: the Google IAP access grant failed — they may not be able to sign in.");
+}

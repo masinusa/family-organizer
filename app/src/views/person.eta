@@ -1,0 +1,225 @@
+<% layout("./layout") %>
+<p><a class="back" href="/family">&larr; Back to the tree</a></p>
+
+<% if (it.error) { %>
+<p class="error"><%= it.error %></p>
+<% } %>
+<% if (it.warning) { %>
+<p class="warning"><%= it.warning %></p>
+<% } %>
+
+<div class="person-head">
+  <span class="monogram monogram-lg" style="background: <%= it.swatch.tint %>; color: <%= it.swatch.ink %>;"
+    ><%= it.initials %></span
+  >
+  <div>
+    <h1><%= it.person.name %></h1>
+    <% if (it.person.blurb) { %>
+    <p class="person-blurb"><%= it.person.blurb %></p>
+    <% } %>
+    <% if (it.birthday || it.person.birthYear || it.account) { %>
+    <p class="who meta-line">
+      <% if (it.birthday) { %><span>&#127874; <%= it.birthday %></span><% } %>
+      <% if (it.person.birthYear) { %><span>Born <%= it.person.birthYear %></span><% } %>
+      <% if (it.account) { %><span><%= it.account.email %></span><% } %>
+    </p>
+    <% } %>
+  </div>
+</div>
+
+<% if (it.canEdit) { %>
+<h2>Their details</h2>
+<form method="post" action="/family/<%= it.person.id %>/persona">
+  <label>
+    Name
+    <input type="text" name="name" value="<%= it.person.name %>" required />
+  </label>
+  <label>
+    A line about them
+    <input type="text" name="blurb" maxlength="60" value="<%= it.person.blurb || '' %>" placeholder="grandma, baker of pies" />
+  </label>
+  <label>
+    Birthday
+    <span class="field-row">
+      <select name="birthMonth">
+        <option value="">&mdash;</option>
+        <% it.months.forEach(function (label, i) { %>
+        <option value="<%= i + 1 %>" <%= it.person.birthMonth === i + 1 ? "selected" : "" %>><%= label %></option>
+        <% }) %>
+      </select>
+      <select name="birthDay">
+        <option value="">&mdash;</option>
+        <% for (let d = 1; d <= 31; d++) { %>
+        <option value="<%= d %>" <%= it.person.birthDay === d ? "selected" : "" %>><%= d %></option>
+        <% } %>
+      </select>
+    </span>
+  </label>
+  <label>
+    Birth year
+    <input
+      type="number"
+      name="birthYear"
+      class="year-input"
+      min="<%= it.minBirthYear %>"
+      max="<%= it.maxBirthYear %>"
+      step="1"
+      inputmode="numeric"
+      placeholder="1952"
+      value="<%= it.person.birthYear || '' %>"
+    />
+  </label>
+  <p class="who field-hint">Either can be left blank &mdash; a birthday without a year, or a year on its own, is fine.</p>
+  <fieldset class="swatches">
+    <legend>Card color</legend>
+    <% it.colors.forEach(function (c) { %>
+    <label class="swatch" title="<%= c.label %>">
+      <input type="radio" name="color" value="<%= c.key %>" <%= it.person.color === c.key ? "checked" : "" %> />
+      <span style="background: <%= c.tint %>; border-color: <%= c.ink %>;"></span>
+    </label>
+    <% }) %>
+  </fieldset>
+  <button type="submit">Save</button>
+</form>
+<% } %>
+
+<% if (it.isAdmin) { %>
+<h2>Account</h2>
+
+<% if (it.account) { %>
+<div class="link-state is-linked">
+  <strong><%= it.account.email %></strong>
+  <span>linked &mdash; <%= it.person.name %> can sign in as <%= it.account.role %></span>
+</div>
+<form method="post" action="/family/<%= it.person.id %>/account" class="account-form">
+  <label>
+    Role
+    <select name="role">
+      <option value="member" <%= it.account.role === "member" ? "selected" : "" %>>Member</option>
+      <option value="admin" <%= it.account.role === "admin" ? "selected" : "" %>>Admin</option>
+    </select>
+  </label>
+  <div class="actions">
+    <button type="submit" name="action" value="grant" class="safe-btn">Update role</button>
+    <button
+      type="submit"
+      name="action"
+      value="revoke"
+      onclick="return confirm('Remove their access? They stay on the tree, but can no longer sign in.');"
+    >
+      Remove access
+    </button>
+  </div>
+</form>
+<form
+  method="post"
+  action="/family/<%= it.person.id %>/email"
+  class="account-form"
+  onsubmit="return confirm('Unlink this account from <%= it.person.name %>? The account keeps working — it just won\'t belong to anyone on the tree.');"
+>
+  <input type="hidden" name="email" value="" />
+  <button type="submit" class="link-btn">Wrong person? Unlink this account</button>
+</form>
+
+<% } else { %>
+<p class="who">
+  <%= it.person.name %> is on the tree but can't sign in yet. Linking is by email: whichever Google
+  address you set here is the account they'll sign in with.
+</p>
+
+<% if (it.linkableAccounts.length > 0) { %>
+<form method="post" action="/family/<%= it.person.id %>/email" class="account-form">
+  <label>
+    Link an account that already exists
+    <select name="email">
+      <% it.linkableAccounts.forEach(function (u) { %>
+      <option value="<%= u.email %>"><%= u.email %> (<%= u.role %>)</option>
+      <% }) %>
+    </select>
+  </label>
+  <button type="submit">Link to <%= it.person.name %></button>
+</form>
+<p class="who or-divider">or</p>
+<% } %>
+
+<form method="post" action="/family/<%= it.person.id %>/email" class="account-form">
+  <label>
+    <%= it.person.email ? "Their email" : "Set their email" %>
+    <input type="text" name="email" value="<%= it.person.email || '' %>" placeholder="name@example.com" />
+  </label>
+  <button type="submit">Save email</button>
+</form>
+
+<% if (it.person.email) { %>
+<div class="link-state">
+  <strong><%= it.person.email %></strong>
+  <span>has no account yet &mdash; grant access to let them sign in.</span>
+</div>
+<form method="post" action="/family/<%= it.person.id %>/account" class="account-form">
+  <label>
+    Role
+    <select name="role">
+      <option value="member">Member</option>
+      <option value="admin">Admin</option>
+    </select>
+  </label>
+  <button type="submit" name="action" value="grant">Let them sign in</button>
+</form>
+<% } %>
+<% } %>
+
+<h2>Parents</h2>
+<p class="who">Choose up to 2. Ctrl/Cmd-click to select or deselect one.</p>
+<form method="post" action="/family/<%= it.person.id %>/parents">
+  <select name="parentIds" multiple size="6">
+    <% it.people.forEach(function (p) { %>
+    <option value="<%= p.id %>" <%= it.person.parentIds.includes(p.id) ? "selected" : "" %>><%= p.name %></option>
+    <% }) %>
+  </select>
+  <button type="submit">Save parents</button>
+</form>
+
+<h2>Partners</h2>
+<% it.partners.forEach(function (partner) { %>
+<div class="card">
+  <div class="bar"></div>
+  <div>
+    <div><strong><%= partner.name %></strong></div>
+    <form class="inline" method="post" action="/family/<%= it.person.id %>/partners/<%= partner.id %>/remove">
+      <button type="submit">Remove</button>
+    </form>
+  </div>
+</div>
+<% }) %>
+<form method="post" action="/family/<%= it.person.id %>/partners">
+  <label>
+    Add a partner
+    <select name="partnerId">
+      <% it.people.filter(function (p) { return !it.person.partnerIds.includes(p.id); }).forEach(function (p) { %>
+      <option value="<%= p.id %>"><%= p.name %></option>
+      <% }) %>
+    </select>
+  </label>
+  <button type="submit">Add partner</button>
+</form>
+
+<% if (it.children.length > 0) { %>
+<h2>Children</h2>
+<% it.children.forEach(function (child) { %>
+<div class="card">
+  <div class="bar"></div>
+  <div><a href="/family/<%= child.id %>"><%= child.name %></a></div>
+</div>
+<% }) %>
+<% } %>
+
+<div class="actions">
+  <form
+    method="post"
+    action="/family/<%= it.person.id %>/delete"
+    onsubmit="return confirm('Remove <%= it.person.name %> from the tree? Their children keep any other parent, but lose this link.');"
+  >
+    <button type="submit">Remove from tree</button>
+  </form>
+</div>
+<% } %>

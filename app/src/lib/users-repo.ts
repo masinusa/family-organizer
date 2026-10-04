@@ -1,13 +1,18 @@
 import { FieldPath, Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
+import { normalizeEmail } from "./email.js";
 import * as iapAccess from "./iap-access.js";
 import type { UserDoc, UserRole } from "./types.js";
 
 const usersCollection = () => firestore.collection("users");
 
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
+/**
+ * Shown when Firestore saved but the Google IAM write didn't. The two can
+ * disagree, and silently reporting success would strand someone who looks
+ * added but cannot actually sign in.
+ */
+export const IAP_SYNC_WARNING =
+  "Saved, but the Google access change didn't go through — sign-in may not work yet. Try again in a moment.";
 
 function toUserDoc(id: string, data: DocumentData): UserDoc {
   return {
@@ -20,9 +25,9 @@ function toUserDoc(id: string, data: DocumentData): UserDoc {
 
 /**
  * The presence of a doc is what grants app access — there's no
- * self-provisioning. Passing IAP only proves someone's in the family
- * Google Group; an admin must still explicitly add them here before
- * they can use the app at all.
+ * self-provisioning. Passing IAP only proves Google let them to the door;
+ * an admin must still explicitly add them here before they can use the
+ * app at all.
  */
 export async function getUser(email: string): Promise<UserDoc | null> {
   const snap = await usersCollection().doc(normalizeEmail(email)).get();
@@ -45,11 +50,15 @@ export async function listUsers(): Promise<UserDoc[]> {
  * Also grants IAP access for the email — the Firestore doc used to be
  * necessary-but-not-sufficient (they still needed adding to a separate
  * Google Group by hand); now this one call is the whole grant. A failure
- * to reach IAP is logged, not thrown: the Firestore doc is the access
- * record that matters to the rest of the app, and must not roll back just
- * because the secondary IAM write hiccupped.
+ * to reach IAP is reported back via `iapFailed` rather than thrown: the
+ * Firestore doc is the access record that matters to the rest of the app
+ * and must not roll back over a secondary IAM hiccup, but the caller
+ * still has to be able to say so instead of claiming success.
  */
-export async function createUser(email: string, role: UserRole): Promise<UserDoc> {
+export async function createUser(
+  email: string,
+  role: UserRole,
+): Promise<{ user: UserDoc; iapFailed: boolean }> {
   const id = normalizeEmail(email);
   const ref = usersCollection().doc(id);
   const existing = await ref.get();
@@ -65,12 +74,14 @@ export async function createUser(email: string, role: UserRole): Promise<UserDoc
     user = toUserDoc(id, { ...data, role, updatedAt: now });
   }
 
+  let iapFailed = false;
   try {
     await iapAccess.grantAccess(id);
   } catch (err) {
+    iapFailed = true;
     console.error(`Failed to grant IAP access to ${id}:`, err);
   }
-  return user;
+  return { user, iapFailed };
 }
 
 /** Pure — no Firestore access — so it's unit-testable without an emulator. */
@@ -100,11 +111,13 @@ export async function setRole(email: string, role: UserRole): Promise<void> {
 
 /**
  * Real delete — access is revoked immediately, not soft-flagged. Also
- * revokes IAP access; a failure there is logged, not thrown, since the
- * Firestore delete is the revocation that matters even if the secondary
- * IAM write hiccups (see requireFamilyMember in access-control.ts).
+ * revokes IAP access; a failure there is reported via `iapFailed` rather
+ * than thrown, since the Firestore delete is the revocation that matters
+ * even if the secondary IAM write hiccups (see requireFamilyMember in
+ * access-control.ts). Worth surfacing: a stranded IAM grant means they
+ * can still reach the door, even though the app will refuse them.
  */
-export async function deleteUser(email: string): Promise<void> {
+export async function deleteUser(email: string): Promise<{ iapFailed: boolean }> {
   const id = normalizeEmail(email);
   await assertNotLastAdmin(id);
   await usersCollection().doc(id).delete();
@@ -112,7 +125,9 @@ export async function deleteUser(email: string): Promise<void> {
     await iapAccess.revokeAccess(id);
   } catch (err) {
     console.error(`Failed to revoke IAP access for ${id}:`, err);
+    return { iapFailed: true };
   }
+  return { iapFailed: false };
 }
 
 /**
