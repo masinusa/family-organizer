@@ -217,6 +217,11 @@ don't rewrite — newest entry last in each section.
   Google Group can't be managed by API at all) and how (IAP's own IAM
   policy, not the Admin SDK).
 
+- Feedback is stored in a private Firestore collection and triaged by admins
+  in the app. Do not automatically create GitHub issues or send feedback by
+  email: free-text family feedback can contain PII, while Firestore stays
+  behind the existing IAP and app authorization boundary.
+
 - Events now carry people, a colour category, and a link. Attendees are an
   array of `{email, name, status}` maps on the event doc — `email` set for a
   family member (matching a `users` doc id), `name` set for an off-app guest

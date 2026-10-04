@@ -3,7 +3,8 @@
 ## Assets
 
 - Family PII: names, emails, and any free-text event details (locations,
-  descriptions) that might reveal a family member's schedule or whereabouts.
+  descriptions) or feedback that might reveal a family member's schedule,
+  whereabouts, or other private information.
 - Calendar contents themselves — who's where, when.
 - The GCP project and its billing account.
 

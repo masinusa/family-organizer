@@ -1,0 +1,31 @@
+<% layout("./layout") %>
+<p><a class="back" href="/admin">&larr; Back to Family Members</a></p>
+<h1>Feedback</h1>
+<% if (it.error) { %>
+<p class="error" role="alert"><%= it.error %></p>
+<% } %>
+<% if (it.feedback.length === 0) { %>
+<p class="who">No feedback has been submitted yet.</p>
+<% } %>
+<% it.feedback.forEach(function (item) { %>
+<article class="card feedback-card">
+  <div class="bar"></div>
+  <div>
+    <div class="feedback-meta">
+      <strong><%= item.category.charAt(0).toUpperCase() + item.category.slice(1) %></strong>
+      &middot; <%= item.submittedBy %>
+      &middot; <time datetime="<%= item.createdAt.toISOString() %>"><%= item.createdAt.toLocaleString() %></time>
+    </div>
+    <p class="feedback-message"><%= item.message %></p>
+    <form class="inline" method="post" action="/admin/feedback/<%= encodeURIComponent(item.id) %>/status">
+      <label class="visually-hidden" for="status-<%= item.id %>">Status</label>
+      <select id="status-<%= item.id %>" name="status">
+        <% it.statuses.forEach(function (status) { %>
+        <option value="<%= status %>" <%= item.status === status ? "selected" : "" %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
+        <% }) %>
+      </select>
+      <button type="submit">Update status</button>
+    </form>
+  </div>
+</article>
+<% }) %>

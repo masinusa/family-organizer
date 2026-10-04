@@ -61,3 +61,19 @@ export interface UserDoc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type FeedbackCategory = "general" | "bug" | "idea";
+export type FeedbackStatus = "new" | "reviewed" | "resolved";
+
+export interface FeedbackInput {
+  message: string;
+  category: FeedbackCategory;
+}
+
+export interface FeedbackDoc extends FeedbackInput {
+  id: string;
+  submittedBy: string;
+  status: FeedbackStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
