@@ -28,3 +28,8 @@ repeat a mistake already found.
 - This repo is public. Treat every commit as world-readable: no real family
   emails, calendar data, or credentials, ever — placeholders and examples
   only.
+- Don't use browser automation (e.g. Claude in Chrome) or spin up the dev
+  server yourself to manually click through a feature you just built —
+  it burns time and tokens. Verify with typecheck/tests instead, then ask
+  the user to run it locally (`scripts/dev-local.sh` or
+  `scripts/dev-local-real.sh`) and try it themselves.
