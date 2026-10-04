@@ -1,22 +1,3 @@
 <% layout("./layout") %>
-<p><a class="back" href="/">&larr; Back</a></p>
-<h1><%= it.event.title %></h1>
-<p><%= it.event.startAt.toLocaleString() %> &ndash; <%= it.event.endAt.toLocaleString() %></p>
-<% if (it.event.location) { %>
-<p><%= it.event.location %></p>
-<% } %> <% if (it.event.description) { %>
-<p><%= it.event.description %></p>
-<% } %>
-<p class="who">Owner: <strong><%= it.event.createdBy %></strong></p>
-
-<div class="actions">
-  <a href="/events/<%= it.event.id %>/edit">Edit</a>
-  <form
-    class="inline"
-    method="post"
-    action="/events/<%= it.event.id %>/delete"
-    onsubmit="return confirm('Delete this event?');"
-  >
-    <button type="submit">Delete</button>
-  </form>
-</div>
+<p><a class="back" href="<%= it.returnTo || "/" %>">&larr; Back</a></p>
+<%~ include("./_event-card", it) %>

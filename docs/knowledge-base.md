@@ -124,6 +124,62 @@ don't rewrite — newest entry last in each section.
   confirmed both work via direct `curl`, though `gcloud`'s own `--log-http`
   output uses the number.
 
+- **Firestore can't range-filter two different fields in one query** without
+  a composite index (and the ordering constraints that come with it), which
+  is what a "show every event overlapping this month" query naturally wants
+  (`startAt < monthEnd AND endAt >= monthStart`). `events-repo.ts`'s
+  `listInRange` pushes only the `startAt` bound down to Firestore and applies
+  the `endAt` bound in memory — no composite index, nothing to add to
+  `firestore.tf`. That trades a little over-fetching (every event starting
+  before the month shown) for not maintaining an index, which is the right
+  way round at family-calendar scale; revisit if the collection ever holds
+  thousands of events. The symptom this fixed: a trip that began in November
+  was invisible on December's grid, because the old query matched on
+  `startAt` alone.
+
+- **A CSS grid's `1fr` floors at its content's width, so one long event
+  title widened its whole calendar column.** `grid-template-columns:
+  repeat(7, 1fr)` in `app/src/views/layout.eta` looks like "seven equal
+  columns" but `1fr` is `minmax(auto, 1fr)` — the `auto` minimum is the
+  largest unbreakable content in that column, so a cell containing
+  "Thanksgiving at Nana's" pushed Thursday wide and squeezed the other six.
+  Only visible once events had colour-filled chips. Fix is
+  `repeat(7, minmax(0, 1fr))`; the chips' own `overflow: hidden` +
+  `text-overflow: ellipsis` then does the truncating.
+
+- **A `:not(:has(...))` rule matches elements that don't contain the thing
+  at all, which is rarely what you mean.** The roster in
+  `app/src/views/_event-fields.eta` hides a family member's response until
+  they're actually on the event, written as
+  `.roster-row:not(:has(.involve:checked)) .seg { display: none }`. Guest
+  rows share `.roster-row` but have no `.involve` checkbox — so the
+  `:has()` was false, the `:not()` was true, and every guest's response
+  control vanished. Fix is to require the control first:
+  `.roster-row:has(.involve):not(:has(.involve:checked))`. Worth assuming
+  any `:not(:has(x))` needs a matching `:has(x)` guard whenever the
+  selector covers more than one kind of row.
+
+- **Eta's `<%= %>` XML-escapes, and a `<script>` body is raw text the HTML
+  parser never decodes — so escaped output arrives in JavaScript mangled.**
+  `var returnTo = <%= JSON.stringify(it.returnTo) %>;` in
+  `app/src/views/calendar.eta` emitted
+  `&quot;/?year=2026&amp;month=11&quot;`, which is a syntax error, not a
+  string. Inside a `<script>` the interpolation has to be `<%~ %>` (raw),
+  which in turn means only ever interpolating values the server built
+  itself — here a path assembled from two parsed numbers. Values with no
+  special characters (a `YYYY-MM-DD`, an integer) survive `<%= %>` by luck,
+  which is what makes this easy to miss.
+- **A stale `tsx watch` process can hold :3000 and silently serve old
+  code.** `scripts/dev-local.sh` starts the server with `nohup` and records
+  one PID, but killing that PID doesn't always take the watcher's child
+  with it; the next run then fails with `EADDRINUSE` *in the log* while the
+  script still reports "Running at http://localhost:3000" — because
+  something is indeed answering. Symptom is changes that don't appear and
+  new routes returning Express's default HTML 404. Check
+  `tail /tmp/family-organizer-dev.log` before debugging the code, and clear
+  it with `pkill -f "tsx watch src/server.ts"` plus
+  `lsof -ti:3000 | xargs kill -9`.
+
 ## Decisions
 
 - Chose native Cloud Run IAP over the older load-balancer + Serverless NEG +
@@ -161,6 +217,94 @@ don't rewrite — newest entry last in each section.
   Google Group can't be managed by API at all) and how (IAP's own IAM
   policy, not the Admin SDK).
 
+- Feedback is stored in a private Firestore collection and triaged by admins
+  in the app. Do not automatically create GitHub issues or send feedback by
+  email: free-text family feedback can contain PII, while Firestore stays
+  behind the existing IAP and app authorization boundary.
+
+- Events now carry people, a colour category, and a link. Attendees are an
+  array of `{email, name, status}` maps on the event doc — `email` set for a
+  family member (matching a `users` doc id), `name` set for an off-app guest
+  (extended family with no account), and `status` one of
+  `invited|yes|maybe|no`. Deliberately denormalised onto the event rather
+  than a subcollection or join collection: the only query needed is "render
+  this event", and a family event has single-digit attendees. A member's own
+  response is also settable in one tap from the event page
+  (`POST /events/:id/rsvp`), which only ever writes the caller's own status —
+  the email comes from the verified IAP identity, never the form.
+- Event categories are **built-ins in code plus custom docs in Firestore**
+  (`DEFAULT_CATEGORIES` in `app/src/lib/categories.ts`, collection
+  `categories`). Keeping the defaults in code means no seeding step, no
+  empty-state, and nothing to restore if the collection is wiped. An event
+  stores only the category id, and `resolveCategory` falls back to a neutral
+  colour for an unknown/absent id — which is what makes deleting a category
+  safe without touching a single event doc. Adding one is open to every
+  family member, not admin-gated: whoever is planning the trip should be
+  able to label it. Colours are validated to `#rrggbb` on the way in *and*
+  on the way out of Firestore, because they're interpolated into `style`
+  attributes.
+- The month grid now spans a multi-day event across every day it covers
+  (superseding the start-day-only note above), and packs each week's events
+  into fixed rows so a running bar keeps the same row all week. The `null`
+  entries in `CalendarDay.events` are deliberate: they hold a row open on a
+  day where an earlier event has ended, without which the bar visibly jumps
+  up a line and stops reading as one continuous run.
+
+- Clicking any empty part of a day cell opens a **quick-add modal** on that
+  day, rather than navigating to the form page. To avoid a second,
+  divergent copy of the event form, every field lives in one partial
+  (`app/src/views/_event-fields.eta`) included by both `event-form.eta` (the
+  full page) and `calendar.eta` (the modal) — so `renderCalendarPage` has to
+  load the member list and categories too. The day number stays a real link
+  to `/events/new?date=...` as the no-JavaScript path, and the click handler
+  suppresses it; event chips keep their own navigation. A validation failure
+  on a modal submit falls through to the full form page with the values and
+  the error, which is the existing behaviour and needs no extra code.
+
+- The event form collapses into **sheets**: only the title and dates are
+  open on arrival, and Category / Who's involved / Details are `<details>`
+  whose closed row states what's inside (the chosen colour, a stack of
+  faces and a count, "Nana's house · link · notes"). This is what keeps the
+  quick-add modal a single screen regardless of how many family members
+  exist — the roster scrolls inside its own sheet rather than stretching
+  the form. Guest rows are added on demand from a `<template>` instead of
+  rendering blank spares.
+- A family member is on an event because their `involved:<email>` checkbox
+  is ticked, not because a status field was submitted for them. The roster
+  renders a response control for everyone, so without that gate every
+  family member would be attached to every event. `memberStatus:<email>` is
+  only read once the gate is set, and both are still looked up per known
+  member — never by scanning submitted field names.
+- People get **deterministic avatars** (`app/src/lib/people.ts`): initial,
+  a colour hashed from the email or guest name, and a display name derived
+  from the email's local part ("mary.jane+cal@x.com" → "Mary Jane"). The
+  palette is deliberately all dark enough that every avatar takes white
+  text, so a roster reads as one set. The same faces appear on the form,
+  the collapsed summary and the event page, which is what makes "who will
+  be where" scannable rather than a list of addresses.
+
+- Opening an event on the calendar **fetches its card into a modal**
+  rather than navigating, because leaving the page lost whichever month was
+  being read — the point of the calendar is looking ahead.
+  `views/_event-card.eta` is shared by `GET /events/:id` (the full page,
+  still the direct-link and no-JS route) and `GET /events/:id/card`, which
+  returns the same markup with no layout. Answering or deleting inside the
+  modal posts with `fetch` and re-renders the card in place, so the grid
+  underneath never reloads.
+- Flows that genuinely do leave the calendar — Edit, and saving a new event
+  from the quick-add modal — carry a `return` path back to the month they
+  started from, validated by `safeCalendarReturn()` in `lib/calendar-page.ts`.
+  That helper only accepts the calendar itself with an optional month, and
+  **re-builds the string from the parsed numbers rather than echoing the
+  input**, so nothing can ride along in a redirect.
+- Tapping the response you already gave clears it: the button posts
+  `invited` ("on the event, hasn't answered") instead of its own status.
+  Entirely a view decision — `POST /events/:id/rsvp` already accepted every
+  status, so no route or repo change was needed. Clearing deliberately
+  leaves you *on* the event rather than removing you, which keeps an
+  invitation someone else extended; coming off an event entirely is a tap
+  on your row in the edit form's roster.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub
@@ -170,3 +314,35 @@ don't rewrite — newest entry last in each section.
 - The budget alert is notify-only (email at 50/90/100% of spend), not a
   hard spending cap. Scale-to-zero Cloud Run and no load balancer are what
   actually bound cost.
+- Multi-row form sections that need adding/removing rows without
+  JavaScript follow the `guestName:<i>` / `guestStatus:<i>` convention in
+  `app/src/lib/event-input.ts`: the form always renders a few blank spare
+  rows, parsing skips rows with a blank name, and **clearing a row's name is
+  how you delete it**. Indexes are positional and re-numbered on every
+  render, so never treat them as stable ids.
+- Anything a family member types that ends up inside an HTML attribute needs
+  validating for *shape*, not just escaping. Two live examples: category
+  colours must match `#rrggbb` before reaching a `style` attribute, and an
+  event's link must parse to an `http:`/`https:` URL before reaching an
+  `href` — Eta's `<%=` escaping alone would happily emit
+  `href="javascript:..."`.
+- `_event-fields.eta` carries its own `<script>` (the all-day/time-field
+  toggle) and uses fixed element ids (`all-day`, `start-date`, `end-date`).
+  That's safe only because no page includes it twice — if one ever needs to,
+  those ids have to become per-instance first. Its script also re-syncs on
+  the form's `reset` event, because the quick-add modal calls
+  `form.reset()` every time it opens and a reset lands *after* its own event
+  fires (hence the `setTimeout(..., 0)`).
+- When JavaScript needs to show a copy of something the server already
+  rendered, **clone the element rather than rebuilding it**. The form's
+  collapsed "Who's involved" row clones each roster avatar into its face
+  stack, so it inherits the server's hashed colour for a saved person, the
+  dashed placeholder for a guest still being typed, and the live initial —
+  with no palette or hash duplicated into the browser. Rebuilding it from
+  `data-` attributes is what lost saved guests their colour the first time.
+- A form that may be submitted both normally and through `fetch` should
+  keep its `onsubmit="return confirm(...)"` and **not** re-ask in the
+  JavaScript handler: a `submit` event only fires once the inline handler
+  has returned true, so confirming in both places prompts twice. The delete
+  form in `_event-card.eta` works this way — guarded on the full page,
+  guarded once in the modal.

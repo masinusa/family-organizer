@@ -1,27 +1,269 @@
 <% layout("./layout") %>
 <h1>Calendar</h1>
+<% if (it.categoryError) { %>
+<p class="error"><%= it.categoryError %></p>
+<% } %>
 <a class="new-btn" href="/events/new">+ New event</a>
 <div class="cal-header">
   <div class="cal-nav-group">
     <a class="cal-nav" href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>">&lsaquo; Prev</a>
     <a class="cal-nav cal-today-btn" href="/">Today</a>
   </div>
-  <h2 class="cal-title"><%= new Date(it.year, it.month - 1, 1).toLocaleString(undefined, { month: "long", year: "numeric" }) %></h2>
+  <h2 class="cal-title"><%= it.monthLabel %></h2>
   <a class="cal-nav" href="/?year=<%= it.next.year %>&month=<%= it.next.month %>">Next &rsaquo;</a>
 </div>
-<div class="cal-grid">
-  <% const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]; %>
-  <% weekdays.forEach(function (label) { %>
-  <div class="cal-weekday"><%= label %></div>
-  <% }) %>
-  <% it.grid.forEach(function (week) { %>
-  <% week.forEach(function (day) { %>
-  <div class="cal-cell<%= day.inCurrentMonth ? "" : " other-month" %><%= day.isToday ? " today" : "" %>">
-    <div class="cal-day-num"><%= day.dayOfMonth %></div>
-    <% day.events.forEach(function (event) { %>
-    <a class="cal-event" href="/events/<%= event.id %>"><%= event.title %></a>
+<div class="cal-layout">
+  <div class="cal-grid">
+    <% const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]; %>
+    <% weekdays.forEach(function (label) { %>
+    <div class="cal-weekday"><%= label %></div>
+    <% }) %>
+    <% it.grid.forEach(function (week) { %>
+    <% week.forEach(function (day) { %>
+    <div
+      class="cal-cell<%= day.inCurrentMonth ? "" : " other-month" %><%= day.isToday ? " today" : "" %>"
+      data-date="<%= it.dateInput(day.date) %>"
+    >
+      <a
+        class="cal-day-num"
+        href="/events/new?date=<%= it.dateInput(day.date) %>"
+        title="New event on this day"
+        ><%= day.dayOfMonth %></a
+      >
+      <% day.events.forEach(function (item) { %>
+      <% if (!item) { %>
+      <span class="cal-event spacer">&nbsp;</span>
+      <% } else { %>
+      <% const chip = it.chipFor(item.event.categoryId); %>
+      <%
+        /* A spanning event is only labelled where it starts or where it
+           wraps onto a new week — otherwise the title repeats every day. */
+        const showLabel = item.isStart || day.date.getDay() === 0;
+      %>
+      <a
+        class="cal-event<%= item.spans ? " spans" : "" %><%= item.isStart ? " is-start" : "" %><%= item.isEnd ? " is-end" : "" %>"
+        style="background: <%= chip.color %>; color: <%= chip.ink %>"
+        href="/events/<%= item.event.id %>"
+        title="<%= item.event.title %><%= item.event.attendees.length ? "\n" + it.attendeeSummary(item.event.attendees) : "" %>"
+      >
+        <% if (showLabel) { %><%= item.event.title %><% if (item.event.attendees.length) { %>
+        <span class="cal-event-count"><%= item.event.attendees.length %></span>
+        <% } %><% } else { %>&nbsp;<% } %>
+      </a>
+      <% } %>
+      <% }) %>
+    </div>
+    <% }) %>
     <% }) %>
   </div>
-  <% }) %>
-  <% }) %>
+
+  <aside class="legend">
+    <h2>Legend</h2>
+    <ul>
+      <% it.categories.forEach(function (cat) { %>
+      <li><span class="swatch" style="background: <%= cat.color %>"></span><%= cat.name %></li>
+      <% }) %>
+    </ul>
+    <button class="legend-add" type="button" id="add-category">+ Add category</button>
+    <p class="hint">Anyone in the family can add a colour.</p>
+  </aside>
 </div>
+
+<dialog id="view-dialog" class="dialog-wide">
+  <button class="dialog-x" type="button" id="close-view" aria-label="Close">&times;</button>
+  <div id="view-body"></div>
+</dialog>
+
+<script>
+  (function () {
+    var dialog = document.getElementById("view-dialog");
+    var body = document.getElementById("view-body");
+    <%
+      /* Raw, not <%= %>: that escapes "&" and a <script> body is raw text
+         the parser never decodes, so the query would arrive mangled. The
+         value is built server-side from two numbers, never from input. */
+    %>
+    var returnTo = <%~ JSON.stringify(it.returnTo) %>;
+    var cardUrl = null;
+
+    document.getElementById("close-view").addEventListener("click", function () {
+      dialog.close();
+    });
+
+    function load(url, open) {
+      return fetch(url, { headers: { "X-Requested-With": "fetch" } })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("card " + response.status);
+          }
+          return response.text();
+        })
+        .then(function (html) {
+          body.innerHTML = html;
+          if (open && !dialog.open) {
+            dialog.showModal();
+          }
+          dialog.scrollTop = 0;
+        });
+    }
+
+    // Opening an event must not lose the month being read, so the card is
+    // fetched into this modal instead of navigating. If anything about that
+    // fails, fall back to the real page rather than swallowing the click.
+    document.addEventListener("click", function (clickEvent) {
+      var chip = clickEvent.target.closest("a.cal-event");
+      if (!chip) {
+        return;
+      }
+      clickEvent.preventDefault();
+      cardUrl = chip.getAttribute("href") + "/card?return=" + encodeURIComponent(returnTo);
+      load(cardUrl, true).catch(function () {
+        window.location.href = chip.getAttribute("href");
+      });
+    });
+
+    // Answering or deleting from inside the modal posts in place, so the
+    // calendar underneath never reloads out from under the reader.
+    body.addEventListener("submit", function (submitEvent) {
+      var form = submitEvent.target;
+      submitEvent.preventDefault();
+      // No confirm here: the card's own onsubmit already asked, and a
+      // submit event only fires at all once it returned true.
+      var deleting = form.action.indexOf("/delete") !== -1;
+      fetch(form.action, { method: "POST", body: new URLSearchParams(new FormData(form)) })
+        .then(function () {
+          if (deleting) {
+            dialog.close();
+            window.location.reload();
+            return null;
+          }
+          return load(cardUrl, false);
+        })
+        .catch(function () {
+          window.location.reload();
+        });
+    });
+  })();
+</script>
+
+<dialog id="event-dialog" class="dialog-wide">
+  <h2 id="event-dialog-title">New event</h2>
+  <form method="post" action="/events">
+    <input type="hidden" name="return" value="<%= it.returnTo %>" />
+    <%~ include("./_event-fields", it) %>
+    <div class="dialog-actions">
+      <button class="btn-quiet" type="button" id="cancel-event">Cancel</button>
+      <button type="submit">Save event</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    var dialog = document.getElementById("event-dialog");
+    var heading = document.getElementById("event-dialog-title");
+    var form = dialog.querySelector("form");
+    var title = form.querySelector('input[name="title"]');
+    var startDate = document.getElementById("start-date");
+    var endDate = document.getElementById("end-date");
+
+    function openOn(date) {
+      form.reset();
+      // Always open compact, whatever was expanded last time.
+      var sheets = form.querySelectorAll(".sheet");
+      for (var i = 0; i < sheets.length; i += 1) {
+        sheets[i].open = false;
+      }
+      startDate.value = date;
+      endDate.value = date;
+      endDate.min = date;
+      heading.textContent =
+        "New event — " +
+        new Date(date + "T00:00").toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        });
+      dialog.showModal();
+      title.focus();
+    }
+
+    document.getElementById("cancel-event").addEventListener("click", function () {
+      dialog.close();
+    });
+
+    // Clicking anywhere empty in a day opens a new event on that day. The
+    // day number is a real link to /events/new as the no-JavaScript path,
+    // so its navigation is suppressed here; event chips keep their own.
+    var cells = document.querySelectorAll(".cal-cell");
+    for (var i = 0; i < cells.length; i += 1) {
+      cells[i].addEventListener("click", function (clickEvent) {
+        if (clickEvent.target.closest("a.cal-event")) {
+          return;
+        }
+        clickEvent.preventDefault();
+        openOn(this.dataset.date);
+      });
+    }
+
+    // Same modal from the button, so there's one way an event gets made.
+    document.querySelector(".new-btn").addEventListener("click", function (clickEvent) {
+      clickEvent.preventDefault();
+      openOn("<%= it.defaultDate %>");
+    });
+  })();
+</script>
+
+<dialog id="category-dialog">
+  <h2>New category</h2>
+  <form method="post" action="/categories">
+    <input type="hidden" name="year" value="<%= it.year %>" />
+    <input type="hidden" name="month" value="<%= it.month %>" />
+    <label>
+      Name
+      <input type="text" name="name" maxlength="<%= it.nameMax %>" required />
+    </label>
+    <label>
+      Colour
+      <div class="color-row">
+        <input type="color" name="color" value="#c98a2c" id="cat-color" />
+        <input type="text" id="cat-hex" value="#c98a2c" maxlength="7" aria-label="Hex colour" />
+      </div>
+    </label>
+    <p class="hint">Pick a colour, or type a hex value like #c98a2c.</p>
+    <div class="dialog-actions">
+      <button class="btn-quiet" type="button" id="cancel-category">Cancel</button>
+      <button type="submit">Add category</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  (function () {
+    var dialog = document.getElementById("category-dialog");
+    var picker = document.getElementById("cat-color");
+    var hex = document.getElementById("cat-hex");
+
+    document.getElementById("add-category").addEventListener("click", function () {
+      dialog.showModal();
+    });
+    document.getElementById("cancel-category").addEventListener("click", function () {
+      dialog.close();
+    });
+
+    // The hex box is a convenience only — it has no name, so the picker's
+    // value is what gets submitted (and the server re-validates it anyway).
+    picker.addEventListener("input", function () {
+      hex.value = picker.value;
+    });
+    hex.addEventListener("input", function () {
+      var value = hex.value.trim();
+      if (value.charAt(0) !== "#") {
+        value = "#" + value;
+      }
+      if (/^#[0-9a-f]{6}$/i.test(value)) {
+        picker.value = value.toLowerCase();
+      }
+    });
+  })();
+</script>

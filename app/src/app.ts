@@ -4,8 +4,10 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { iapAuth } from "./middleware/iap-auth.js";
 import { requireFamilyMember } from "./middleware/access-control.js";
 import { accessDeniedRouter } from "./routes/access-denied.js";
+import { categoriesRouter } from "./routes/categories.js";
 import { eventsRouter } from "./routes/events.js";
 import { familyRouter } from "./routes/family.js";
+import { feedbackRouter } from "./routes/feedback.js";
 import { healthRouter } from "./routes/health.js";
 
 export function createApp() {
@@ -25,7 +27,11 @@ export function createApp() {
   app.use(requireFamilyMember);
   app.use(express.static(publicDir));
   app.use(eventsRouter);
+  app.use(categoriesRouter);
+  // Replaces the old adminRouter: /family is both the tree and the place
+  // family members and their accounts are managed.
   app.use(familyRouter);
+  app.use(feedbackRouter);
 
   app.use(errorHandler);
 

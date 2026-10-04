@@ -34,7 +34,7 @@
         -webkit-font-smoothing: antialiased;
       }
       .wrap { max-width: 34rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
-      .wrap:has(.cal-grid) { max-width: 56rem; }
+      .wrap:has(.cal-layout) { max-width: 64rem; }
       /* The tree earns more room than a reading column. The nav is widened
          to match so the two stay aligned on this page. */
       .wrap:has(.tree-scroll) { max-width: 90rem; }
@@ -43,7 +43,7 @@
         display: flex;
         align-items: center;
         gap: 1.25rem;
-        max-width: 56rem;
+        max-width: 64rem;
         margin: 0 auto;
         padding: 1rem 1.5rem;
         border-bottom: 1px solid var(--border);
@@ -111,6 +111,9 @@
       input[type="text"],
       input[type="number"],
       input[type="datetime-local"],
+      input[type="date"],
+      input[type="time"],
+      input[type="color"],
       textarea,
       select {
         display: block;
@@ -123,8 +126,6 @@
         background: var(--surface);
         color: var(--ink);
       }
-      .checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; margin-top: 1rem; }
-      .checkbox-label input { width: auto; margin: 0; }
       button {
         margin-top: 1.5rem;
         padding: 0.6rem 1.3rem;
@@ -157,7 +158,9 @@
       }
       .cal-grid {
         display: grid;
-        grid-template-columns: repeat(7, 1fr);
+        /* minmax(0, 1fr), not 1fr: a plain 1fr floors at the content's own
+           width, so one long event title would widen its whole column. */
+        grid-template-columns: repeat(7, minmax(0, 1fr));
         gap: 1px;
         background: var(--border);
         border: 1px solid var(--border);
@@ -180,6 +183,8 @@
         flex-direction: column;
         gap: 0.2rem;
       }
+      /* The whole cell opens a new event on that day (see calendar.eta). */
+      .cal-cell { cursor: pointer; }
       .cal-cell.other-month { background: var(--bg); }
       .cal-cell.other-month .cal-day-num { color: var(--muted); }
       .cal-cell.today { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); box-shadow: inset 0 0 0 2px var(--primary); }
@@ -356,19 +361,21 @@
       .field-row select { margin-top: 0; }
       .field-hint { margin: 0.4rem 0 0; font-size: 0.78rem; }
       .year-input { max-width: 8rem; font-variant-numeric: tabular-nums; }
-      .swatches { border: none; padding: 0; margin: 1rem 0 0; }
-      .swatches legend { font-size: 0.85rem; font-weight: 700; padding: 0; }
-      .swatch { display: inline-block; margin: 0.4rem 0.4rem 0 0; cursor: pointer; }
-      .swatch input { position: absolute; opacity: 0; width: 0; height: 0; }
-      .swatch span {
+      /* Named apart from the calendar's .swatch/.swatches colour chips,
+         which are a different size and shape and load later in this sheet. */
+      .persona-swatches { border: none; padding: 0; margin: 1rem 0 0; }
+      .persona-swatches legend { font-size: 0.85rem; font-weight: 700; padding: 0; }
+      .persona-swatch { display: inline-block; margin: 0.4rem 0.4rem 0 0; cursor: pointer; }
+      .persona-swatch input { position: absolute; opacity: 0; width: 0; height: 0; }
+      .persona-swatch span {
         display: block;
         width: 30px;
         height: 30px;
         border-radius: 50%;
         border: 2px solid transparent;
       }
-      .swatch input:checked + span { border-width: 3px; transform: scale(1.1); }
-      .swatch input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+      .persona-swatch input:checked + span { border-width: 3px; transform: scale(1.1); }
+      .persona-swatch input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
       .account-form { margin-top: 1rem; }
       .link-state {
         display: flex;
@@ -396,6 +403,483 @@
         text-decoration: underline;
       }
       .link-btn:hover { color: var(--danger); }
+
+      /* --- calendar page: grid + legend sidebar --- */
+      .cal-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 13.5rem;
+        gap: 1.25rem;
+        align-items: start;
+      }
+      @media (max-width: 52rem) {
+        .cal-layout { grid-template-columns: 1fr; }
+      }
+      .legend {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 0.9rem 1rem;
+        box-shadow: 0 1px 3px rgba(38, 41, 31, 0.05);
+      }
+      .legend h2 { margin: 0 0 0.6rem; font-size: 0.9rem; }
+      .legend ul {
+        list-style: none;
+        margin: 0 0 0.85rem;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+      }
+      .legend li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+      .swatch {
+        width: 0.85rem;
+        height: 0.85rem;
+        border-radius: 3px;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      }
+      .legend-add {
+        width: 100%;
+        margin-top: 0;
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        background: var(--surface);
+        color: var(--primary);
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+      }
+      .hint { font-size: 0.78rem; font-weight: 400; color: var(--muted); margin: 0.35rem 0 0; }
+
+      dialog {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--ink);
+        padding: 1.25rem;
+        max-width: 22rem;
+        width: calc(100% - 2rem);
+      }
+      dialog::backdrop { background: rgba(38, 41, 31, 0.45); }
+      dialog h2 { margin-top: 0; }
+      /* The quick-add modal holds the whole event form, so it scrolls
+         inside itself rather than growing past the viewport. */
+      dialog.dialog-wide { max-width: 32rem; max-height: 85vh; overflow-y: auto; }
+      dialog.dialog-wide h2 { font-size: 1.1rem; }
+      dialog.dialog-wide { position: relative; }
+      .dialog-x {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.7rem;
+        margin: 0;
+        padding: 0.2rem 0.4rem;
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.4rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .dialog-x:hover { color: var(--ink); }
+      #view-body h1 { font-size: 1.25rem; padding-right: 1.5rem; }
+      #view-body .actions { margin-bottom: 0; }
+      .color-row { display: flex; gap: 0.6rem; align-items: flex-end; margin-top: 0.35rem; }
+      .color-row input[type="color"] { width: 3.25rem; height: 2.5rem; padding: 0.2rem; margin-top: 0; }
+      .color-row input[type="text"] { margin-top: 0; }
+      .dialog-actions { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1.25rem; }
+      .dialog-actions button { margin-top: 0; }
+      .btn-quiet {
+        background: var(--surface);
+        color: var(--muted);
+        border: 1px solid var(--border);
+        font-weight: 700;
+      }
+
+      /* A multi-day event bleeds over the 1px grid gap so it reads as one
+         continuous bar; .cal-grid's overflow:hidden clips it at week edges. */
+      .cal-event.spans { border-radius: 0; }
+      .cal-event.spans.is-start { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+      .cal-event.spans.is-end { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+      .cal-event.spans:not(.is-start) { margin-left: -0.45rem; }
+      .cal-event.spans:not(.is-end) { margin-right: -0.45rem; }
+      .cal-event-count { opacity: 0.75; font-weight: 800; }
+      /* Holds a row open so a neighbouring day's bar stays on one line. */
+      .cal-event.spacer { visibility: hidden; }
+      .cal-day-num { text-decoration: none; color: inherit; align-self: flex-start; }
+
+      /* --- event form -------------------------------------------------
+         Only the title and dates are open on arrival; everything else is a
+         <details> "sheet" whose closed row states what's inside. Keeps the
+         form the same height whether the family has three people or ten. */
+      .field-title {
+        width: 100%;
+        margin: 0 0 1rem;
+        padding: 0.3rem 0 0.5rem;
+        border: none;
+        border-bottom: 2px solid var(--border);
+        border-radius: 0;
+        background: none;
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 1.35rem;
+      }
+      .field-title::placeholder { color: var(--border); }
+      .field-title:focus-visible {
+        outline: none;
+        border-bottom-color: var(--primary);
+      }
+
+      .switch { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+      .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .switch-track {
+        width: 2.4rem;
+        height: 1.35rem;
+        padding: 0.15rem;
+        border-radius: 999px;
+        background: var(--border);
+        transition: background 0.18s ease;
+      }
+      .switch-knob {
+        display: block;
+        width: 1.05rem;
+        height: 1.05rem;
+        border-radius: 50%;
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(38, 41, 31, 0.25);
+        transition: transform 0.18s ease;
+      }
+      .switch:has(input:checked) .switch-track { background: var(--primary); }
+      .switch:has(input:checked) .switch-knob { transform: translateX(1.05rem); }
+      .switch:has(input:focus-visible) .switch-track { outline: 2px solid var(--primary); outline-offset: 2px; }
+      .switch-text { font-size: 0.85rem; font-weight: 700; }
+
+      .when { margin: 0.85rem 0 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+      .when-row { display: flex; align-items: center; gap: 0.6rem; }
+      .when-label {
+        flex: 0 0 2.5rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--muted);
+      }
+      .when-row input { margin-top: 0; }
+      .when-row input[type="date"] { flex: 1 1 auto; min-width: 0; }
+      .when-row input[type="time"] { flex: 0 0 7.5rem; }
+      .time-field[hidden] { display: none; }
+
+      .sheet {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        margin-bottom: 0.6rem;
+        overflow: hidden;
+      }
+      .sheet-head {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.7rem 0.9rem;
+        cursor: pointer;
+        list-style: none;
+        font-size: 0.85rem;
+      }
+      .sheet-head::-webkit-details-marker { display: none; }
+      .sheet-head:hover { background: color-mix(in srgb, var(--primary) 4%, var(--surface)); }
+      .sheet-name { font-weight: 700; white-space: nowrap; }
+      .sheet-value {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-left: auto;
+        min-width: 0;
+        color: var(--muted);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .sheet-chev {
+        flex-shrink: 0;
+        width: 0.5rem;
+        height: 0.5rem;
+        border-right: 2px solid var(--muted);
+        border-bottom: 2px solid var(--muted);
+        transform: rotate(45deg) translate(-0.1rem, -0.1rem);
+        transition: transform 0.2s ease;
+      }
+      .sheet[open] .sheet-chev { transform: rotate(225deg) translate(-0.15rem, -0.15rem); }
+      .sheet[open] .sheet-head { border-bottom: 1px solid var(--border); }
+      .sheet-body {
+        padding: 0.85rem 0.9rem 1rem;
+        animation: sheet-open 0.22s ease both;
+      }
+      @keyframes sheet-open {
+        from { opacity: 0; transform: translateY(-0.4rem); }
+      }
+      .sheet-body > label:first-child { margin-top: 0; }
+      .sub { font-family: var(--font-head); font-size: 0.82rem; margin: 1.25rem 0 0.1rem; }
+
+      .dot {
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+      }
+      .dot-none { background: repeating-linear-gradient(45deg, var(--border) 0 2px, var(--surface) 2px 4px); }
+
+      .swatches { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .swatch-opt {
+        --swatch: var(--border);
+        --swatch-ink: var(--ink);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin: 0;
+        padding: 0.35rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.12s ease;
+      }
+      .swatch-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .swatch-opt:hover { transform: translateY(-1px); }
+      .swatch-opt:has(input:checked) {
+        background: var(--swatch);
+        border-color: var(--swatch);
+        color: var(--swatch-ink);
+      }
+      .swatch-opt:has(input:checked) .dot { display: none; }
+      .swatch-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+      .av {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 1.9rem;
+        height: 1.9rem;
+        border-radius: 50%;
+        background: var(--border);
+        color: var(--ink);
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 0.8rem;
+        line-height: 1;
+      }
+      .av-xs { width: 1.4rem; height: 1.4rem; font-size: 0.65rem; }
+      .guest-av { background: var(--bg); color: var(--muted); border: 1px dashed var(--border); }
+      /* Overlapping faces — reads as a group at a glance, in roster order. */
+      .stack { display: inline-flex; flex-shrink: 0; }
+      .stack .av + .av { margin-left: -0.45rem; }
+      .stack .av { box-shadow: 0 0 0 2px var(--surface); }
+
+      .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+      .roster-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.35rem 0.4rem;
+        border-radius: 8px;
+        transition: background 0.15s ease;
+      }
+      .roster-row:has(.involve:checked) { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+      .roster-who {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        font-weight: 400;
+        cursor: pointer;
+      }
+      .roster-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+      .roster-name strong { font-size: 0.85rem; }
+      .roster-name small {
+        font-size: 0.72rem;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .involve {
+        appearance: none;
+        flex-shrink: 0;
+        width: 1.3rem;
+        height: 1.3rem;
+        margin: 0;
+        padding: 0;
+        border: 1.5px dashed var(--muted);
+        border-radius: 50%;
+        background: none;
+        cursor: pointer;
+        position: relative;
+      }
+      .involve::after {
+        content: "+";
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 0.9rem;
+        font-weight: 800;
+        color: var(--muted);
+        line-height: 1;
+      }
+      .involve:checked {
+        border: none;
+        background: var(--primary);
+      }
+      .involve:checked::after { content: "\2713"; color: #fff; font-size: 0.8rem; }
+      /* A member's response only matters once they're on the event. Scoped
+         to rows that have an involve box at all — a guest row has none, and
+         an unscoped :not() would hide every guest's response too. */
+      .roster-row:has(.involve):not(:has(.involve:checked)) .seg { display: none; }
+      .guest-row .guest-name { flex: 1 1 auto; width: auto; min-width: 0; margin-top: 0; }
+
+      .seg {
+        display: inline-flex;
+        flex-shrink: 0;
+        padding: 2px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--bg);
+      }
+      .seg-opt {
+        margin: 0;
+        padding: 0.2rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+      .seg-opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .seg-opt:has(input:checked) { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(38, 41, 31, 0.12); }
+      .seg-yes:has(input:checked) { background: var(--primary); color: #fff; }
+      .seg-maybe:has(input:checked) { background: var(--accent); color: #2b1c00; }
+      .seg-no:has(input:checked) { background: var(--danger); color: #fff; }
+      .seg-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+      .row-x {
+        flex-shrink: 0;
+        margin: 0;
+        padding: 0 0.35rem;
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 1.1rem;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .row-x:hover { color: var(--danger); }
+      .add-row {
+        margin-top: 0.55rem;
+        padding: 0.4rem 0.8rem;
+        background: none;
+        border: 1px dashed var(--border);
+        border-radius: 999px;
+        color: var(--primary);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+      .add-row:hover { border-color: var(--primary); }
+
+      @media (max-width: 26rem) {
+        .roster-row { flex-wrap: wrap; }
+        .seg { margin-left: 2.45rem; }
+      }
+
+      /* --- event detail --- */
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+      .rsvp {
+        margin-top: 1.25rem;
+        padding: 0.85rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .rsvp p { margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 700; }
+      .rsvp-bar { display: flex; gap: 0.5rem; }
+      .rsvp-bar form { display: inline; margin: 0; }
+      .rsvp-bar button {
+        margin-top: 0;
+        padding: 0.35rem 0.9rem;
+        font-size: 0.82rem;
+        font-weight: 700;
+        background: var(--surface);
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      .rsvp-bar button.chosen { background: var(--primary); color: #fff; border-color: var(--primary); }
+      .group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.6rem; }
+      .group-label {
+        flex: 0 0 3.6rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        background: var(--border);
+        color: var(--ink);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-align: center;
+      }
+      /* Same status colours as the form's segmented control, but these are
+         plain spans, so they need their own rules. */
+      .group-label.seg-yes { background: var(--primary); color: #fff; }
+      .group-label.seg-maybe { background: var(--accent); color: #2b1c00; }
+      .group-label.seg-no { background: var(--danger); color: #fff; }
+      .group-label.seg-invited { background: var(--border); color: var(--muted); }
+      .face { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+      .created-by { font-size: 0.85rem; color: var(--muted); margin: 1.25rem 0 0; }
+      .feedback-fab {
+        position: fixed;
+        right: 1.5rem;
+        bottom: 1.5rem;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.65rem 0.9rem;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 3px 12px rgba(38, 41, 31, 0.24);
+        font-size: 0.85rem;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .feedback-fab:hover { background: #203c25; }
+      .feedback-fab svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 2; }
+      .success { color: var(--primary); font-weight: 600; }
+      .feedback-card { align-items: flex-start; }
+      .feedback-meta { color: var(--muted); font-size: 0.8rem; }
+      .feedback-message { margin: 0.6rem 0 0; white-space: pre-wrap; }
+      .feedback-card form.inline { margin: 0.75rem 0 0; }
+      .feedback-card form.inline select { display: inline-block; width: auto; margin: 0; }
+      .feedback-card form.inline button { margin: 0 0 0 0.4rem; padding: 0.45rem 1rem; font-size: 0.85rem; }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      @media (max-width: 30rem) {
+        .feedback-fab { right: 1rem; bottom: 1rem; }
+      }
     </style>
   </head>
   <body>
@@ -410,5 +894,11 @@
     </nav>
     <% } %>
     <div class="wrap"><%~ it.body %></div>
+    <% if (it.email) { %>
+    <a class="feedback-fab" href="/feedback" aria-label="Send feedback">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15a4 4 0 0 1-4 4H8l-4 3v-7a4 4 0 0 1-2-3.5v-5A4 4 0 0 1 6 3h10a4 4 0 0 1 4 4z" /></svg>
+      <span>Feedback</span>
+    </a>
+    <% } %>
   </body>
 </html>

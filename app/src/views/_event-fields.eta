@@ -1,0 +1,410 @@
+<%
+  /*
+   * Every field of an event, shared by the full-page form
+   * (views/event-form.eta) and the quick-add modal on the calendar
+   * (views/calendar.eta) so the two can never drift apart. The caller
+   * supplies the surrounding <form> and its submit button, and gets its
+   * data from eventFieldsData() in lib/event-fields.ts.
+   *
+   * Only the title and the dates are open on arrival. Everything else
+   * lives in a <details> sheet whose closed row states what's inside, so
+   * the form stays short no matter how big the family gets.
+   */
+%>
+<input
+  class="field-title"
+  type="text"
+  name="title"
+  value="<%= it.values.title %>"
+  placeholder="What's happening?"
+  aria-label="Title"
+  autocomplete="off"
+  required
+/>
+
+<label class="switch">
+  <input type="checkbox" name="allDay" id="all-day" <%= it.values.allDay ? "checked" : "" %> />
+  <span class="switch-track"><span class="switch-knob"></span></span>
+  <span class="switch-text">All day</span>
+</label>
+
+<div class="when">
+  <div class="when-row">
+    <span class="when-label">From</span>
+    <input type="date" name="startDate" id="start-date" value="<%= it.values.startDate %>" required />
+    <input class="time-field" type="time" name="startTime" value="<%= it.values.startTime %>" aria-label="Start time" />
+  </div>
+  <div class="when-row">
+    <span class="when-label">To</span>
+    <input type="date" name="endDate" id="end-date" value="<%= it.values.endDate %>" />
+    <input class="time-field" type="time" name="endTime" value="<%= it.values.endTime %>" aria-label="End time" />
+  </div>
+</div>
+
+<details class="sheet" id="sheet-category">
+  <summary class="sheet-head">
+    <span class="sheet-name">Category</span>
+    <span class="sheet-value" id="category-value">
+      <% if (it.selectedCategory) { %>
+      <span class="dot" style="background: <%= it.selectedCategory.color %>"></span><%= it.selectedCategory.name %>
+      <% } else { %>
+      <span class="dot dot-none"></span>None
+      <% } %>
+    </span>
+    <span class="sheet-chev" aria-hidden="true"></span>
+  </summary>
+  <div class="sheet-body">
+    <div class="swatches">
+      <label class="swatch-opt swatch-none">
+        <input
+          type="radio"
+          name="categoryId"
+          value=""
+          data-name="None"
+          <%= it.values.categoryId ? "" : "checked" %>
+        />
+        <span class="dot dot-none"></span>None
+      </label>
+      <% it.categories.forEach(function (cat) { %>
+      <label class="swatch-opt" style="--swatch: <%= cat.color %>; --swatch-ink: <%= cat.ink %>">
+        <input
+          type="radio"
+          name="categoryId"
+          value="<%= cat.id %>"
+          data-name="<%= cat.name %>"
+          data-color="<%= cat.color %>"
+          <%= it.values.categoryId === cat.id ? "checked" : "" %>
+        />
+        <span class="dot" style="background: <%= cat.color %>"></span><%= cat.name %>
+      </label>
+      <% }) %>
+    </div>
+  </div>
+</details>
+
+<details class="sheet" id="sheet-people">
+  <summary class="sheet-head">
+    <span class="sheet-name">Who's involved</span>
+    <span class="sheet-value" id="people-value"></span>
+    <span class="sheet-chev" aria-hidden="true"></span>
+  </summary>
+  <div class="sheet-body">
+    <ul class="roster">
+      <% it.roster.forEach(function (person) { %>
+      <li
+        class="roster-row"
+        data-label="<%= person.avatar.label %>"
+      >
+        <label class="roster-who">
+          <input
+            type="checkbox"
+            class="involve"
+            name="involved:<%= person.email %>"
+            aria-label="Add <%= person.avatar.label %> to this event"
+            <%= person.status ? "checked" : "" %>
+          />
+          <span class="av" style="background: <%= person.avatar.color %>; color: <%= person.avatar.ink %>"
+            ><%= person.avatar.initial %></span
+          >
+          <span class="roster-name">
+            <strong><%= person.avatar.label %></strong>
+            <small><%= person.email %></small>
+          </span>
+        </label>
+        <div class="seg" role="group" aria-label="Response for <%= person.avatar.label %>">
+          <% it.statuses.forEach(function (status) { %>
+          <label class="seg-opt seg-<%= status.value %>">
+            <input
+              type="radio"
+              name="memberStatus:<%= person.email %>"
+              value="<%= status.value %>"
+              <%= (person.status || "invited") === status.value ? "checked" : "" %>
+            />
+            <span><%= status.label %></span>
+          </label>
+          <% }) %>
+        </div>
+      </li>
+      <% }) %>
+    </ul>
+
+    <h4 class="sub">Other guests</h4>
+    <p class="hint">Relatives who don't have an account here.</p>
+    <ul class="roster" id="guest-list">
+      <% it.guestRows.forEach(function (guest) { %>
+      <li class="roster-row guest-row">
+        <span
+          class="av guest-av"
+          <% if (guest.avatar) { %>style="background: <%= guest.avatar.color %>; color: <%= guest.avatar.ink %>"<% } %>
+          ><%= guest.avatar ? guest.avatar.initial : "+" %></span
+        >
+        <input
+          class="guest-name"
+          type="text"
+          name="guestName:<%= guest.index %>"
+          value="<%= guest.name %>"
+          placeholder="Name"
+          aria-label="Guest name"
+        />
+        <div class="seg" role="group" aria-label="Response for this guest">
+          <% it.statuses.forEach(function (status) { %>
+          <label class="seg-opt seg-<%= status.value %>">
+            <input
+              type="radio"
+              name="guestStatus:<%= guest.index %>"
+              value="<%= status.value %>"
+              <%= guest.status === status.value ? "checked" : "" %>
+            />
+            <span><%= status.label %></span>
+          </label>
+          <% }) %>
+        </div>
+        <button class="row-x" type="button" aria-label="Remove this guest">&times;</button>
+      </li>
+      <% }) %>
+    </ul>
+    <button class="add-row" type="button" id="add-guest">+ Add a guest</button>
+
+    <%
+      /* The row JS clones for each new guest. __I__ is the field index;
+         clearing a name still removes the guest server-side, so a row the
+         user never fills in costs nothing. */
+    %>
+    <template id="guest-template">
+      <li class="roster-row guest-row">
+        <span class="av guest-av">+</span>
+        <input
+          class="guest-name"
+          type="text"
+          name="guestName:__I__"
+          placeholder="Name"
+          aria-label="Guest name"
+        />
+        <div class="seg" role="group" aria-label="Response for this guest">
+          <% it.statuses.forEach(function (status) { %>
+          <label class="seg-opt seg-<%= status.value %>">
+            <input
+              type="radio"
+              name="guestStatus:__I__"
+              value="<%= status.value %>"
+              <%= status.value === "invited" ? "checked" : "" %>
+            />
+            <span><%= status.label %></span>
+          </label>
+          <% }) %>
+        </div>
+        <button class="row-x" type="button" aria-label="Remove this guest">&times;</button>
+      </li>
+    </template>
+    <noscript>
+      <p class="hint">Save to add another guest row.</p>
+    </noscript>
+  </div>
+</details>
+
+<details class="sheet" id="sheet-details">
+  <summary class="sheet-head">
+    <span class="sheet-name">Details</span>
+    <span class="sheet-value" id="details-value"><%= it.detailsSummary %></span>
+    <span class="sheet-chev" aria-hidden="true"></span>
+  </summary>
+  <div class="sheet-body">
+    <label>
+      Place
+      <input type="text" name="location" id="field-location" value="<%= it.values.location %>" />
+    </label>
+    <label>
+      Link
+      <input
+        type="text"
+        name="link"
+        id="field-link"
+        value="<%= it.values.link %>"
+        placeholder="maps.google.com/..."
+      />
+    </label>
+    <label>
+      Notes
+      <textarea name="description" id="field-description" rows="3"><%= it.values.description %></textarea>
+    </label>
+  </div>
+</details>
+
+<script>
+  (function () {
+    var allDay = document.getElementById("all-day");
+    var timeFields = document.querySelectorAll(".time-field");
+    var startDate = document.getElementById("start-date");
+    var endDate = document.getElementById("end-date");
+    var form = allDay.closest("form");
+
+    // --- all-day hides the hours -------------------------------------
+    function syncTimeFields() {
+      for (var i = 0; i < timeFields.length; i += 1) {
+        timeFields[i].hidden = allDay.checked;
+      }
+    }
+    allDay.addEventListener("change", syncTimeFields);
+
+    function syncEndDate() {
+      endDate.min = startDate.value;
+      if (!endDate.value || endDate.value < startDate.value) {
+        endDate.value = startDate.value;
+      }
+    }
+    startDate.addEventListener("change", syncEndDate);
+
+    // --- collapsed rows say what's inside ----------------------------
+    var categoryValue = document.getElementById("category-value");
+    var peopleValue = document.getElementById("people-value");
+    var detailsValue = document.getElementById("details-value");
+    var guestList = document.getElementById("guest-list");
+    var template = document.getElementById("guest-template");
+    var firstGuestIndex = <%= it.nextGuestIndex %>;
+    var nextGuest = firstGuestIndex;
+
+    // Clone the row's own avatar rather than rebuilding one: it already
+    // carries the server's colour for a saved person, the dashed
+    // placeholder for a guest still being typed, and the live initial.
+    function faceFrom(avatar, label) {
+      var face = avatar.cloneNode(true);
+      face.classList.add("av-xs");
+      face.title = label;
+      return face;
+    }
+
+    function syncCategory() {
+      var picked = form.querySelector('input[name="categoryId"]:checked');
+      if (!picked) {
+        return;
+      }
+      var color = picked.getAttribute("data-color");
+      categoryValue.textContent = "";
+      var dot = document.createElement("span");
+      dot.className = color ? "dot" : "dot dot-none";
+      if (color) {
+        dot.style.background = color;
+      }
+      categoryValue.appendChild(dot);
+      categoryValue.appendChild(document.createTextNode(picked.getAttribute("data-name")));
+    }
+
+    function syncPeople() {
+      var faces = [];
+      var rows = form.querySelectorAll(".roster-row");
+      for (var i = 0; i < rows.length; i += 1) {
+        var row = rows[i];
+        var involve = row.querySelector(".involve");
+        if (involve) {
+          if (involve.checked) {
+            faces.push(faceFrom(row.querySelector(".av"), row.dataset.label));
+          }
+          continue;
+        }
+        var name = row.querySelector(".guest-name");
+        if (name && name.value.trim()) {
+          faces.push(faceFrom(row.querySelector(".guest-av"), name.value.trim()));
+        }
+      }
+
+      peopleValue.textContent = "";
+      if (faces.length === 0) {
+        peopleValue.textContent = "Nobody yet";
+        return;
+      }
+      var stack = document.createElement("span");
+      stack.className = "stack";
+      for (var f = 0; f < faces.length && f < 5; f += 1) {
+        stack.appendChild(faces[f]);
+      }
+      peopleValue.appendChild(stack);
+      peopleValue.appendChild(
+        document.createTextNode(faces.length + (faces.length === 1 ? " person" : " people"))
+      );
+    }
+
+    function syncDetails() {
+      var parts = [];
+      var place = document.getElementById("field-location").value.trim();
+      if (place) {
+        parts.push(place.length > 28 ? place.slice(0, 27) + "…" : place);
+      }
+      if (document.getElementById("field-link").value.trim()) {
+        parts.push("link");
+      }
+      if (document.getElementById("field-description").value.trim()) {
+        parts.push("notes");
+      }
+      detailsValue.textContent = parts.length ? parts.join(" · ") : "Add a place, link or notes";
+    }
+
+    function syncAll() {
+      syncTimeFields();
+      syncCategory();
+      syncPeople();
+      syncDetails();
+    }
+
+    // --- interactions ------------------------------------------------
+    // Picking a colour is the whole point of opening that sheet, so it
+    // closes itself once one is chosen.
+    form.addEventListener("change", function (changeEvent) {
+      var target = changeEvent.target;
+      if (target.name === "categoryId") {
+        syncCategory();
+        document.getElementById("sheet-category").open = false;
+      } else if (target.classList.contains("involve")) {
+        syncPeople();
+      }
+    });
+
+    form.addEventListener("input", function (inputEvent) {
+      var target = inputEvent.target;
+      if (target.classList.contains("guest-name")) {
+        var face = target.parentNode.querySelector(".guest-av");
+        var typed = target.value.trim();
+        face.textContent = typed ? typed.charAt(0).toUpperCase() : "+";
+        syncPeople();
+      } else if (target.id === "field-location" || target.id === "field-link" || target.id === "field-description") {
+        syncDetails();
+      }
+    });
+
+    document.getElementById("add-guest").addEventListener("click", function () {
+      var markup = template.innerHTML.split("__I__").join(String(nextGuest));
+      nextGuest += 1;
+      guestList.insertAdjacentHTML("beforeend", markup);
+      var added = guestList.lastElementChild;
+      added.classList.add("guest-added");
+      added.querySelector(".guest-name").focus();
+    });
+
+    guestList.addEventListener("click", function (clickEvent) {
+      var remove = clickEvent.target.closest(".row-x");
+      if (remove) {
+        remove.closest(".guest-row").remove();
+        syncPeople();
+      }
+    });
+
+    // The quick-add modal calls form.reset() every time it opens, and a
+    // reset lands after its own event fires — hence the deferred re-sync.
+    form.addEventListener("reset", function () {
+      setTimeout(function () {
+        // Only rows this script added get cleared; the server-rendered
+        // ones are the event's real guests, and reset restores their values.
+        var rows = guestList.querySelectorAll(".guest-added");
+        for (var i = 0; i < rows.length; i += 1) {
+          rows[i].remove();
+        }
+        nextGuest = firstGuestIndex;
+        syncAll();
+      }, 0);
+    });
+
+    syncAll();
+    if (startDate.value) {
+      endDate.min = startDate.value;
+    }
+  })();
+</script>

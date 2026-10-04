@@ -87,3 +87,19 @@ This is the entire identity/authorization system alongside IAP: a doc's
 presence is what grants app access, and its existence also drives the
 IAP-access grant itself (ADR 0006) — there's no separate credentials table
 or external group to keep in sync.
+
+**`feedback/{feedbackId}`** (top-level collection)
+
+| field       | notes                                               |
+| ----------- | --------------------------------------------------- |
+| message     | Required free text, limited to 2,000 characters    |
+| category    | enum: general / bug / idea                          |
+| submittedBy | Email from the verified IAP identity                |
+| status      | enum: new / reviewed / resolved                     |
+| createdAt   | Server-generated Firestore timestamp                |
+| updatedAt   | Server-generated Firestore timestamp                |
+
+Feedback is submitted only through the authenticated app, stored privately
+in Firestore, and reviewed by admins in the app. It is never automatically
+sent to GitHub or email, so private family details do not escape the
+application's existing access boundary.

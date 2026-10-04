@@ -62,6 +62,7 @@
 <% if (it.isAdmin) { %>
 <p class="tree-admin-links">
   <a href="/family/new">+ Add someone</a> &middot;
-  <a href="/family/accounts">Who can sign in</a>
+  <a href="/family/accounts">Who can sign in</a> &middot;
+  <a href="/admin/feedback">Review feedback</a>
 </p>
 <% } %>
