@@ -1,74 +1,89 @@
 <% layout("./layout") %>
-<h1>Calendar</h1>
 <% if (it.categoryError) { %>
 <p class="error"><%= it.categoryError %></p>
 <% } %>
-<a class="new-btn" href="/events/new">+ New event</a>
 <div class="cal-header">
-  <nav class="cal-month-nav" aria-label="Month navigation">
-    <a
-      class="cal-nav cal-nav-arrow"
-      href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>"
-      aria-label="Previous month"
-      title="Previous month"
-      >&lsaquo;<span class="cal-nav-word">Prev</span></a
-    >
-    <div class="cal-title-wrap">
-      <span class="cal-title-kicker">Planning for</span>
-      <h2 class="cal-title"><%= it.monthLabel %></h2>
+  <div class="cal-calendar-controls">
+    <nav class="cal-month-nav" aria-label="Month navigation">
+      <a
+        class="cal-nav cal-nav-arrow"
+        href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>"
+        aria-label="Previous month"
+        title="Previous month"
+        >&lsaquo;<span class="cal-nav-word">Prev</span></a
+      >
+      <div class="cal-title-wrap">
+        <span class="cal-title-kicker">Planning for</span>
+        <h1 class="cal-title"><%= it.monthLabel %></h1>
+      </div>
+      <a
+        class="cal-nav cal-nav-arrow"
+        href="/?year=<%= it.next.year %>&month=<%= it.next.month %>"
+        aria-label="Next month"
+        title="Next month"
+        ><span class="cal-nav-word">Next</span>&rsaquo;</a
+      >
+    </nav>
+    <div class="cal-calendar-actions">
+      <a class="cal-nav cal-today-btn" href="/">Today</a>
+      <a class="new-btn" href="/events/new">+ New event</a>
     </div>
-    <a
-      class="cal-nav cal-nav-arrow"
-      href="/?year=<%= it.next.year %>&month=<%= it.next.month %>"
-      aria-label="Next month"
-      title="Next month"
-      ><span class="cal-nav-word">Next</span>&rsaquo;</a
-    >
-  </nav>
-  <a class="cal-nav cal-today-btn" href="/">Today</a>
+  </div>
 </div>
 <div class="cal-layout">
-  <div class="cal-grid">
+  <div class="cal-months">
     <% const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]; %>
-    <% weekdays.forEach(function (label) { %>
-    <div class="cal-weekday"><%= label %></div>
-    <% }) %>
-    <% it.grid.forEach(function (week) { %>
-    <% week.forEach(function (day) { %>
-    <div
-      class="cal-cell<%= day.inCurrentMonth ? "" : " other-month" %><%= day.isToday ? " today" : "" %>"
-      data-date="<%= it.dateInput(day.date) %>"
-    >
-      <a
-        class="cal-day-num"
-        href="/events/new?date=<%= it.dateInput(day.date) %>"
-        title="New event on this day"
-        ><%= day.dayOfMonth %></a
-      >
-      <% day.events.forEach(function (item) { %>
-      <% if (!item) { %>
-      <span class="cal-event spacer">&nbsp;</span>
-      <% } else { %>
-      <% const chip = it.chipFor(item.event.categoryId); %>
-      <%
-        /* A spanning event is only labelled where it starts or where it
-           wraps onto a new week — otherwise the title repeats every day. */
-        const showLabel = item.isStart || day.date.getDay() === 0;
-      %>
-      <a
-        class="cal-event<%= item.spans ? " spans" : "" %><%= item.isStart ? " is-start" : "" %><%= item.isEnd ? " is-end" : "" %>"
-        style="background: <%= chip.color %>; color: <%= chip.ink %>"
-        href="/events/<%= item.event.id %>"
-        title="<%= item.event.title %><%= item.event.attendees.length ? "\n" + it.attendeeSummary(item.event.attendees) : "" %>"
-      >
-        <% if (showLabel) { %><%= item.event.title %><% if (item.event.attendees.length) { %>
-        <span class="cal-event-count"><%= item.event.attendees.length %></span>
-        <% } %><% } else { %>&nbsp;<% } %>
-      </a>
+    <% it.months.forEach(function (calendarMonth, index) { %>
+    <section class="cal-month" aria-label="<%= calendarMonth.label %> calendar">
+      <% if (index > 0) { %>
+      <header class="cal-month-heading">
+        <span>Coming up</span>
+        <h2><%= calendarMonth.label %></h2>
+      </header>
       <% } %>
-      <% }) %>
-    </div>
-    <% }) %>
+      <div class="cal-grid">
+        <% weekdays.forEach(function (label) { %>
+        <div class="cal-weekday"><%= label %></div>
+        <% }) %>
+        <% calendarMonth.grid.forEach(function (week) { %>
+        <% week.forEach(function (day) { %>
+        <div
+          class="cal-cell<%= day.inCurrentMonth ? "" : " other-month" %><%= day.isToday ? " today" : "" %>"
+          data-date="<%= it.dateInput(day.date) %>"
+        >
+          <a
+            class="cal-day-num"
+            href="/events/new?date=<%= it.dateInput(day.date) %>"
+            title="New event on this day"
+            ><%= day.dayOfMonth %></a
+          >
+          <% day.events.forEach(function (item) { %>
+          <% if (!item) { %>
+          <span class="cal-event spacer">&nbsp;</span>
+          <% } else { %>
+          <% const chip = it.chipFor(item.event.categoryId); %>
+          <%
+            /* A spanning event is only labelled where it starts or where it
+               wraps onto a new week — otherwise the title repeats every day. */
+            const showLabel = item.isStart || day.date.getDay() === 0;
+          %>
+          <a
+            class="cal-event<%= item.spans ? " spans" : "" %><%= item.isStart ? " is-start" : "" %><%= item.isEnd ? " is-end" : "" %>"
+            style="background: <%= chip.color %>; color: <%= chip.ink %>"
+            href="/events/<%= item.event.id %>"
+            title="<%= item.event.title %><%= item.event.attendees.length ? "\n" + it.attendeeSummary(item.event.attendees) : "" %>"
+          >
+            <% if (showLabel) { %><%= item.event.title %><% if (item.event.attendees.length) { %>
+            <span class="cal-event-count"><%= item.event.attendees.length %></span>
+            <% } %><% } else { %>&nbsp;<% } %>
+          </a>
+          <% } %>
+          <% }) %>
+        </div>
+        <% }) %>
+        <% }) %>
+      </div>
+    </section>
     <% }) %>
   </div>
 
@@ -80,7 +95,6 @@
       <% }) %>
     </ul>
     <button class="legend-add" type="button" id="add-category">+ Add category</button>
-    <p class="hint">Anyone in the family can add a colour.</p>
   </aside>
 </div>
 

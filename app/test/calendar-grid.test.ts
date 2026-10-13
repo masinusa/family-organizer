@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildMonthGrid } from "../src/lib/calendar-grid.js";
-import { defaultNewEventDate, safeCalendarReturn } from "../src/lib/calendar-page.js";
+import { defaultNewEventDate, displayedMonths, safeCalendarReturn } from "../src/lib/calendar-page.js";
 import type { EventDoc } from "../src/lib/types.js";
 
 function makeEvent(overrides: Partial<EventDoc> = {}): EventDoc {
@@ -194,6 +194,17 @@ test('"+ New event" opens on a day that is actually on screen', () => {
   // Looking at any other month: its 1st, never an off-screen date.
   assert.deepEqual(defaultNewEventDate(2026, 11, today), new Date(2026, 10, 1));
   assert.deepEqual(defaultNewEventDate(2025, 10, today), new Date(2025, 9, 1));
+});
+
+test("shows the selected month and the following month, even across a year", () => {
+  assert.deepEqual(displayedMonths({ year: 2026, month: 10 }), [
+    { year: 2026, month: 10 },
+    { year: 2026, month: 11 },
+  ]);
+  assert.deepEqual(displayedMonths({ year: 2026, month: 12 }), [
+    { year: 2026, month: 12 },
+    { year: 2027, month: 1 },
+  ]);
 });
 
 test("only the calendar itself is accepted as a return path", () => {

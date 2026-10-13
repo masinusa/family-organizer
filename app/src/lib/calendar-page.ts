@@ -13,6 +13,15 @@ export interface MonthSelection {
   month: number;
 }
 
+/** The selected month plus the one immediately after it, including December rollover. */
+export function displayedMonths(selection: MonthSelection): MonthSelection[] {
+  const next =
+    selection.month === 12
+      ? { year: selection.year + 1, month: 1 }
+      : { year: selection.year, month: selection.month + 1 };
+  return [selection, next];
+}
+
 /** Falls back to the current month for anything missing or out of range. */
 export function parseMonthQuery(query: Request["query"], now = new Date()): MonthSelection {
   const year = Number(query.year);
@@ -70,10 +79,12 @@ export async function renderCalendarPage(
 ): Promise<string> {
   const { year, month } = selection;
   const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 1);
+  const months = displayedMonths(selection);
+  const finalMonth = months[months.length - 1]!;
+  const displayEnd = new Date(finalMonth.year, finalMonth.month, 1);
 
   const [events, categories, members] = await Promise.all([
-    eventsRepo.listInRange(monthStart, monthEnd),
+    eventsRepo.listInRange(monthStart, displayEnd),
     listCategories(),
     // Needed by the quick-add modal, which renders the same fields as the
     // full event form (views/_event-fields.eta).
@@ -82,7 +93,14 @@ export async function renderCalendarPage(
   const chips = categories.map(toChip);
 
   return render("calendar", {
-    grid: buildMonthGrid(year, month, events),
+    months: months.map((calendarMonth) => ({
+      ...calendarMonth,
+      grid: buildMonthGrid(calendarMonth.year, calendarMonth.month, events),
+      label: new Date(calendarMonth.year, calendarMonth.month - 1, 1).toLocaleString(undefined, {
+        month: "long",
+        year: "numeric",
+      }),
+    })),
     year,
     month,
     monthLabel: monthStart.toLocaleString(undefined, { month: "long", year: "numeric" }),

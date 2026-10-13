@@ -304,6 +304,11 @@ don't rewrite — newest entry last in each section.
   leaves you *on* the event rather than removing you, which keeps an
   invitation someone else extended; coming off an event entirely is a tap
   on your row in the edit form's roster.
+- The calendar shows the selected month plus the following month as two
+  **stacked full grids**, rather than a cramped desktop row or three-month
+  scroll. This keeps event titles, multi-day bars, and day-cell quick-add
+  usable at every viewport; use the month switcher for prior months or a
+  longer look-ahead.
 
 ## Guidelines
 

@@ -147,11 +147,20 @@
       /* Non-destructive action sharing a row with a destructive one. */
       .actions button.safe-btn { background: var(--accent); color: #2b1c00; }
       .cal-header {
-        display: flex;
+        display: grid;
         align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
+        grid-template-columns: minmax(0, 1fr) 13.5rem;
+        gap: 1.25rem;
         margin: 0 0 0.75rem;
+        padding-top: 0.75rem;
+      }
+      .cal-calendar-controls {
+        grid-column: 1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.45rem;
       }
       .cal-month-nav {
         display: flex;
@@ -208,6 +217,11 @@
         font-size: 0.72rem;
         font-weight: 800;
       }
+      .cal-calendar-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
       .cal-today-btn {
         padding: 0.45rem 0.75rem;
         border: 1px solid var(--border);
@@ -216,6 +230,10 @@
         color: var(--ink);
       }
       .cal-today-btn:hover { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); }
+      .cal-calendar-actions .new-btn {
+        margin: 0;
+        padding: 0.45rem 0.75rem;
+      }
       @media (max-width: 32rem) {
         .cal-nav-word { display: none; }
         .cal-title-wrap { padding-inline: 0.65rem; }
@@ -476,7 +494,32 @@
         gap: 1.25rem;
         align-items: start;
       }
+      .cal-months {
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+        min-width: 0;
+      }
+      .cal-month-heading {
+        display: flex;
+        align-items: baseline;
+        gap: 0.55rem;
+        margin: 0 0 0.55rem;
+      }
+      .cal-month-heading span {
+        color: var(--accent);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .cal-month-heading h2 {
+        margin: 0;
+        font-family: var(--font-head);
+        font-size: 1rem;
+      }
       @media (max-width: 52rem) {
+        .cal-header,
         .cal-layout { grid-template-columns: 1fr; }
       }
       .legend {
