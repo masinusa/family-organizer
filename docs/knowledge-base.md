@@ -180,6 +180,34 @@ don't rewrite — newest entry last in each section.
   it with `pkill -f "tsx watch src/server.ts"` plus
   `lsof -ti:3000 | xargs kill -9`.
 
+- **Dropping the Google Group (ADR 0006) stranded existing members: nobody
+  backfilled the IAP IAM policy from the `users` collection.** ADR 0006
+  reasoned that group-only members lose nothing because `requireFamilyMember`
+  already blocked them — true only for someone with no Firestore doc. Anyone
+  added *before* the grant code shipped had a `users` doc (app access) but
+  got their IAP access from the group binding, so removing that binding
+  locked them out at the login prompt with no trace: no error, no log line
+  (the grant code never ran for them), and `/family/accounts` still listing
+  them as able to sign in. Found in Oct 2026, two weeks later, only because
+  someone said they couldn't get in. Diagnose a "can't log in" report by
+  comparing both gates — `gcloud iap web get-iam-policy --resource-type=cloud-run
+  --region=<region> --service=<service>` against the `users` collection — and
+  fix with `gcloud iap web add-iam-policy-binding ... --member=user:<email>
+  --role=roles/iap.httpsResourceAccessor`. A reconcile check that surfaces
+  this drift in the UI still doesn't exist.
+- **`setIamPolicy` rejects an email with no Google account, and
+  `IAP_SYNC_WARNING` tells the admin to retry something that can never
+  succeed.** A mistyped address fails the IAM write with
+  `User <email> does not exist.` (HTTP 400) while the Firestore doc saves
+  fine, so the person shows up as having an account forever. The warning
+  text ("the Google access change didn't go through — sign-in may not work
+  yet. Try again in a moment.") reads as transient, but a nonexistent user
+  is permanent until the email itself is corrected — and a typo is the most
+  likely cause, since a real address is what makes the call succeed. Worth
+  distinguishing that one error from a genuine hiccup before telling anyone
+  to wait. Note a correction needs three fixes, not one: the person's email,
+  the stale `users` doc under the wrong address, and then a fresh grant.
+
 ## Decisions
 
 - Chose native Cloud Run IAP over the older load-balancer + Serverless NEG +
