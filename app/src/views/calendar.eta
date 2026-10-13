@@ -5,12 +5,27 @@
 <% } %>
 <a class="new-btn" href="/events/new">+ New event</a>
 <div class="cal-header">
-  <div class="cal-nav-group">
-    <a class="cal-nav" href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>">&lsaquo; Prev</a>
-    <a class="cal-nav cal-today-btn" href="/">Today</a>
-  </div>
-  <h2 class="cal-title"><%= it.monthLabel %></h2>
-  <a class="cal-nav" href="/?year=<%= it.next.year %>&month=<%= it.next.month %>">Next &rsaquo;</a>
+  <nav class="cal-month-nav" aria-label="Month navigation">
+    <a
+      class="cal-nav cal-nav-arrow"
+      href="/?year=<%= it.prev.year %>&month=<%= it.prev.month %>"
+      aria-label="Previous month"
+      title="Previous month"
+      >&lsaquo;<span class="cal-nav-word">Prev</span></a
+    >
+    <div class="cal-title-wrap">
+      <span class="cal-title-kicker">Planning for</span>
+      <h2 class="cal-title"><%= it.monthLabel %></h2>
+    </div>
+    <a
+      class="cal-nav cal-nav-arrow"
+      href="/?year=<%= it.next.year %>&month=<%= it.next.month %>"
+      aria-label="Next month"
+      title="Next month"
+      ><span class="cal-nav-word">Next</span>&rsaquo;</a
+    >
+  </nav>
+  <a class="cal-nav cal-today-btn" href="/">Today</a>
 </div>
 <div class="cal-layout">
   <div class="cal-grid">
