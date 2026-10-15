@@ -16,12 +16,7 @@
   >
     <svg class="tree-svg" width="<%= it.layout.width %>" height="<%= it.layout.height %>" aria-hidden="true">
       <% it.layout.connectors.forEach(function (line) { %>
-      <path class="tree-line tree-line-<%= line.kind %>" d="<%= line.d %>" />
-      <% }) %>
-      <% it.layout.connectors.forEach(function (line) { %>
-      <% if (line.kind === "partner") { %>
-      <text class="tree-heart" x="<%= line.markX %>" y="<%= line.markY %>">&#9825;</text>
-      <% } %>
+      <path class="tree-line" d="<%= line.d %>" />
       <% }) %>
     </svg>
     <% it.cards.forEach(function (card) { %>

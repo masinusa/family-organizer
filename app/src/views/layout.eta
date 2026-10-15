@@ -294,14 +294,10 @@
       .tree-scroll { overflow-x: auto; padding: 0.5rem 0 7rem; }
       .tree-canvas { position: relative; margin: 0 auto; }
       .tree-svg { position: absolute; top: 0; left: 0; pointer-events: none; }
+      /* One stroke for every connector: a sideways line between two people
+         says they belong side by side and nothing more, so it carries no
+         colour, dash or symbol that would read as "a couple". */
       .tree-line { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
-      .tree-line-partner { stroke: var(--accent); stroke-dasharray: 5 4; opacity: 0.75; }
-      .tree-heart {
-        fill: var(--accent);
-        font-size: 13px;
-        text-anchor: middle;
-        dominant-baseline: central;
-      }
       .person-card {
         position: absolute;
         width: var(--card-w);
@@ -486,6 +482,38 @@
         text-decoration: underline;
       }
       .link-btn:hover { color: var(--danger); }
+
+      /* --- person page: one list for every kind of relationship --- */
+      .rel-list { list-style: none; margin: 0; padding: 0; }
+      .rel-row {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 0.4rem;
+        padding: 0.5rem 0.8rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 0.9rem;
+      }
+      /* Fixed width so the names line up into a column whatever the tag. */
+      .rel-tag {
+        flex: 0 0 7.5rem;
+        color: var(--muted);
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .rel-row a { font-weight: 700; color: var(--ink); text-decoration: none; }
+      .rel-row form { margin-left: auto; }
+      .rel-row .link-btn { margin-top: 0; }
+      .rel-note { margin-left: auto; color: var(--muted); font-size: 0.78rem; }
+      .rel-add { margin-top: 1.25rem; }
+      .rel-optional { color: var(--muted); font-weight: 600; text-transform: none; }
+      @media (max-width: 26rem) {
+        .rel-tag { flex-basis: 6.5rem; }
+      }
 
       /* --- calendar page: grid + legend sidebar --- */
       .cal-layout {

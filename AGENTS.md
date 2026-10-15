@@ -33,3 +33,33 @@ repeat a mistake already found.
   it burns time and tokens. Verify with typecheck/tests instead, then ask
   the user to run it locally (`scripts/dev-local.sh` or
   `scripts/dev-local-real.sh`) and try it themselves.
+
+## Fail fast; no fallbacks, no legacy
+
+There is one deployment, one dataset, and one supported version of
+everything here. Code that quietly tolerates an older shape of the world
+is dead weight, and it hides real bugs behind plausible-looking defaults.
+
+- **No back-compat shims for our own data.** When a Firestore document
+  shape changes, migrate the collection or clear it — don't add read-time
+  defaults so documents written before the change still load. A field
+  that should be there and isn't is a bug, and it should surface as one.
+- **Don't paper over unexpected values.** Coercing an unrecognised enum to
+  a default, or `?? ""`-ing away something that should always be present,
+  turns a loud failure into a silently wrong answer. Throw, or let it
+  throw.
+- **Target current runtimes only.** Node 22+ and current evergreen
+  browsers. No polyfills, no transpile targets for older engines, no
+  feature detection for things our browsers already have (`:has()`,
+  `<dialog>`, `fetch`, `color-mix()`), and no `<noscript>` or
+  no-JavaScript fallback paths — the app already requires JavaScript.
+- **Delete what you replace.** When a new path supersedes an old one,
+  remove the old one in the same change instead of leaving both wired up
+  "just in case". Two live paths means two things to reason about and one
+  of them is untested.
+
+The one exception is **untrusted input**, which must still be validated
+and rejected explicitly — that *is* failing fast. Rejecting a bad request
+with a 4xx, or refusing a colour that isn't `#rrggbb` before it reaches a
+`style` attribute, is required; silently substituting a default for it is
+what this section forbids. See [`docs/threat-model.md`](docs/threat-model.md).

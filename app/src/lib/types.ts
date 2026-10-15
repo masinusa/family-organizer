@@ -78,7 +78,18 @@ export interface PersonDoc {
   /** A key into PERSONA_COLORS, not a raw hex — see lib/persona.ts. */
   color: string | null;
   parentIds: string[];
-  partnerIds: string[];
+  /**
+   * The generic sideways link: two people drawn on the same row with a
+   * plain line between them. Partners are the common case, but it is
+   * deliberately unlabelled — co-parents, a carer, or anyone else who
+   * belongs alongside rather than above or below. Always reciprocal.
+   *
+   * The UI calls one of these a "relationship" (you add either a parent or
+   * a relationship). The field stays `connectionIds` because in code that
+   * word has to mean *only* the sideways link — a parent is a relationship
+   * too, so `relationshipIds` would read as if it held both.
+   */
+  connectionIds: string[];
   createdAt: Date;
   updatedAt: Date;
 }

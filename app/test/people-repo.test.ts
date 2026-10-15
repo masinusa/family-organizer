@@ -9,7 +9,7 @@ function makePerson(overrides: Partial<PersonDoc> = {}): PersonDoc {
     name: "Person",
     email: null,
     parentIds: [],
-    partnerIds: [],
+    connectionIds: [],
     createdAt: new Date(2026, 8, 1),
     updatedAt: new Date(2026, 8, 1),
     ...overrides,

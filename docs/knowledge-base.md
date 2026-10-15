@@ -208,6 +208,17 @@ don't rewrite — newest entry last in each section.
   to wait. Note a correction needs three fixes, not one: the person's email,
   the stale `users` doc under the wrong address, and then a fresh grant.
 
+- **An apostrophe inside a JavaScript comment in an Eta `<% %>` block
+  silently swallows the rest of the template.** Eta skips delimiters that
+  sit inside string literals, and it does not know a `//` comment is a
+  comment — so `// so there's a single place` opens a quote that runs on
+  until the next `'` in the file, taking the closing `%>` with it.
+  Everything after is compiled as JavaScript and the only clue is
+  `EtaParseError: Unexpected token '%'`. Keep apostrophes out of comments
+  inside template tags. This also showed why rendering a touched template
+  once is worth it: `tsc` and the unit tests both passed with the template
+  completely broken, because nothing in the test suite renders a view.
+
 ## Decisions
 
 - Chose native Cloud Run IAP over the older load-balancer + Serverless NEG +
@@ -337,6 +348,39 @@ don't rewrite — newest entry last in each section.
   scroll. This keeps event titles, multi-day bars, and day-cell quick-add
   usable at every viewport; use the month switcher for prior months or a
   longer look-ahead.
+
+- A sideways link between two people is a **generic relationship**, not a
+  partnership: `PersonDoc.connectionIds` (formerly `partnerIds`), drawn as
+  a plain horizontal line in the same stroke as every other connector. The
+  heart that used to sit at its midpoint is gone, along with the dashed
+  accent styling — the tree records people who belong side by side, which
+  is often but not always a couple, and nothing in the drawing should
+  assert which. The layout still treats a connection the way it treated a
+  partnership (same row, placed adjacent, centred as a pair over shared
+  children); only the meaning and the ink changed. The field rename is a
+  real migration, not a tolerated second shape: `npm run
+  migrate:connections` moves every person over once per deployment, and a
+  doc still missing `connectionIds` throws with that command in the
+  message rather than reading as "no connections".
+- Parents and connections are edited in **one relationships section** on
+  the person page: a single list where every link reads the same way
+  (`↑ Parent` / `↔ Relationship` / `↓ Child`), and one add form whose first
+  field picks which kind you are making — a parent takes one or two people,
+  a relationship takes one. "Relationship" is the word on screen because it
+  is what someone would say out loud; the field and the `kind` wire value
+  stay `connection*`, since in code that word has to mean only the sideways
+  link (a parent is a relationship too). That replaced a Ctrl/Cmd-click
+  multi-select for parents plus a separate add/remove form for partners.
+  Both kinds post to `POST /family/:id/relationships` and come off at
+  `POST /family/:id/relationships/remove`, with `kind` deciding which
+  fields are read, so the page has one editor rather than one per kind.
+- The pickers only offer links that would be accepted — self, existing
+  links and descendants are filtered out in the route, and the parent half
+  closes off at two. The rules in `people-repo.ts` (at most two parents, no
+  self, no cycles) stay as the backstop, but they are no longer how someone
+  finds out. Adding or removing one parent still goes through `setParents`
+  with the whole recomputed set, because every one of those rules is a
+  property of the set rather than of a single edge.
 
 ## Guidelines
 

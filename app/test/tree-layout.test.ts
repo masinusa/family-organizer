@@ -23,7 +23,7 @@ function makePerson(overrides: Partial<PersonDoc> = {}): PersonDoc {
     birthYear: null,
     color: null,
     parentIds: [],
-    partnerIds: [],
+    connectionIds: [],
     createdAt: new Date(2026, 8, 1),
     updatedAt: new Date(2026, 8, 1),
     ...overrides,
@@ -54,12 +54,12 @@ test("a lone person with no relationships sits at generation 0", () => {
   assert.equal(layout.connectors.length, 0);
 });
 
-test("simple 3-generation nuclear family stacks generations and connects partners/children", () => {
+test("simple 3-generation nuclear family stacks generations and connects pairs/children", () => {
   const people = [
-    makePerson({ id: "gp1", name: "Grandparent 1", partnerIds: ["gp2"] }),
-    makePerson({ id: "gp2", name: "Grandparent 2", partnerIds: ["gp1"] }),
-    makePerson({ id: "parent1", name: "Parent 1", parentIds: ["gp1", "gp2"], partnerIds: ["parent2"] }),
-    makePerson({ id: "parent2", name: "Parent 2", partnerIds: ["parent1"] }),
+    makePerson({ id: "gp1", name: "Grandparent 1", connectionIds: ["gp2"] }),
+    makePerson({ id: "gp2", name: "Grandparent 2", connectionIds: ["gp1"] }),
+    makePerson({ id: "parent1", name: "Parent 1", parentIds: ["gp1", "gp2"], connectionIds: ["parent2"] }),
+    makePerson({ id: "parent2", name: "Parent 2", connectionIds: ["parent1"] }),
     makePerson({ id: "child1", name: "Child 1", parentIds: ["parent1", "parent2"] }),
   ];
 
@@ -80,11 +80,11 @@ test("simple 3-generation nuclear family stacks generations and connects partner
   assert.equal(rows.size, 3);
 });
 
-test("a person with two partners produces distinct sibling clusters per partner", () => {
+test("a person connected to two people produces distinct sibling clusters per co-parent", () => {
   const people = [
-    makePerson({ id: "a", name: "A", partnerIds: ["b", "d"] }),
-    makePerson({ id: "b", name: "B", partnerIds: ["a"] }),
-    makePerson({ id: "d", name: "D", partnerIds: ["a"] }),
+    makePerson({ id: "a", name: "A", connectionIds: ["b", "d"] }),
+    makePerson({ id: "b", name: "B", connectionIds: ["a"] }),
+    makePerson({ id: "d", name: "D", connectionIds: ["a"] }),
     makePerson({ id: "c1", name: "C1", parentIds: ["a", "b"] }),
     makePerson({ id: "c2", name: "C2", parentIds: ["a", "b"] }),
     makePerson({ id: "e1", name: "E1", parentIds: ["a", "d"] }),
@@ -106,25 +106,26 @@ test("a person with two partners produces distinct sibling clusters per partner"
 
   // Two separate parent->children bundles, each 5 paths: 2 parent drops,
   // 1 bus joining them, and 1 elbow per child.
-  assert.equal(layout.connectors.length, 1 /* a-b partner */ + 1 /* a-d partner */ + 5 + 5);
-  assert.equal(layout.connectors.filter((c) => c.kind === "partner").length, 2);
+  assert.equal(layout.connectors.length, 1 /* a-b link */ + 1 /* a-d link */ + 5 + 5);
+  assert.equal(layout.connectors.filter((c) => c.kind === "connection").length, 2);
 });
 
-test("partner links are marked for the heart at their midpoint", () => {
+test("a connection is one plain horizontal line between the two cards", () => {
   const people = [
-    makePerson({ id: "a", name: "A", partnerIds: ["b"] }),
-    makePerson({ id: "b", name: "B", partnerIds: ["a"] }),
+    makePerson({ id: "a", name: "A", connectionIds: ["b"] }),
+    makePerson({ id: "b", name: "B", connectionIds: ["a"] }),
   ];
   const layout = buildTreeLayout(people);
 
-  const partners = layout.connectors.filter((c) => c.kind === "partner");
-  assert.equal(partners.length, 1, "a reciprocal pair should only draw one line");
+  const connections = layout.connectors.filter((c) => c.kind === "connection");
+  assert.equal(connections.length, 1, "a reciprocal pair should only draw one line");
 
   const [a, b] = [findCard(layout, "a"), findCard(layout, "b")];
-  const link = partners[0]!;
-  // Spans the gap between the two cards, at their shared mid-height.
-  assert.equal(link.markX, (a.x + CARD_WIDTH + b.x) / 2);
-  assert.equal(link.markY, a.y + CARD_HEIGHT / 2);
+  const midY = a.y + CARD_HEIGHT / 2;
+  // Straight across the gap between the two cards, at their shared
+  // mid-height, with nothing drawn on it.
+  assert.equal(connections[0]!.d, `M ${a.x + CARD_WIDTH} ${midY} L ${b.x} ${midY}`);
+  assert.deepEqual(Object.keys(connections[0]!).sort(), ["d", "kind"]);
 });
 
 test("a child offset from its parent gets a rounded elbow, not a hard corner", () => {
@@ -170,8 +171,8 @@ test("a parent is centred over its two children", () => {
 
 test("a couple raising the same children straddles them", () => {
   const people = [
-    makePerson({ id: "m", name: "M", partnerIds: ["d"] }),
-    makePerson({ id: "d", name: "D", partnerIds: ["m"] }),
+    makePerson({ id: "m", name: "M", connectionIds: ["d"] }),
+    makePerson({ id: "d", name: "D", connectionIds: ["m"] }),
     makePerson({ id: "a", name: "A", parentIds: ["m", "d"] }),
     makePerson({ id: "b", name: "B", parentIds: ["m", "d"] }),
   ];
@@ -226,7 +227,7 @@ test("a child's generation reconciles unequal parent generations via max()", () 
   const people = [
     makePerson({ id: "gp", name: "Grandparent" }),
     makePerson({ id: "deepParent", name: "Deep parent", parentIds: ["gp"] }), // gen 1
-    makePerson({ id: "shallowParent", name: "Shallow parent" }), // gen 0, unpartnered
+    makePerson({ id: "shallowParent", name: "Shallow parent" }), // gen 0, unconnected
     makePerson({ id: "child", name: "Child", parentIds: ["deepParent", "shallowParent"] }),
   ];
 

@@ -5,6 +5,20 @@ import type { PersonDoc, PersonaInput } from "./types.js";
 
 const peopleCollection = () => firestore.collection("people");
 
+/**
+ * A person doc written before the `partnerIds` -> `connectionIds` rename
+ * is a bug, not a shape to tolerate: it means the one-off
+ * `npm run migrate:connections` has not been run against this deployment.
+ * Throwing says so, where defaulting to `[]` would quietly erase whoever
+ * that person is linked to.
+ */
+function requireConnectionIds(id: string, data: DocumentData): string[] {
+  if (!Array.isArray(data.connectionIds)) {
+    throw new Error(`Person ${id} has no connectionIds — run "npm run migrate:connections".`);
+  }
+  return data.connectionIds as string[];
+}
+
 function toPersonDoc(id: string, data: DocumentData): PersonDoc {
   return {
     id,
@@ -16,7 +30,7 @@ function toPersonDoc(id: string, data: DocumentData): PersonDoc {
     birthYear: data.birthYear ?? null,
     color: data.color ?? null,
     parentIds: data.parentIds ?? [],
-    partnerIds: data.partnerIds ?? [],
+    connectionIds: requireConnectionIds(id, data),
     createdAt: (data.createdAt as Timestamp).toDate(),
     updatedAt: (data.updatedAt as Timestamp).toDate(),
   };
@@ -43,7 +57,7 @@ export async function createPerson(name: string, email: string | null): Promise<
     birthYear: null,
     color: null,
     parentIds: [] as string[],
-    partnerIds: [] as string[],
+    connectionIds: [] as string[],
     createdAt: now,
     updatedAt: now,
   };
@@ -79,6 +93,8 @@ export async function setEmail(id: string, email: string | null): Promise<void> 
 export const TOO_MANY_PARENTS_ERROR = "A person can have at most 2 parents.";
 export const SELF_PARENT_ERROR = "A person cannot be their own parent.";
 export const CYCLE_PARENT_ERROR = "That would create a cycle (a descendant can't also be a parent).";
+export const SELF_CONNECTION_ERROR = "Pick someone other than themselves.";
+export const MISSING_PERSON_ERROR = "That person is no longer on the tree.";
 
 /**
  * BFS over parentIds edges to find everyone descended from `personId`.
@@ -126,26 +142,58 @@ export async function setParents(personId: string, parentIds: string[]): Promise
   await peopleCollection().doc(personId).update({ parentIds: deduped, updatedAt: Timestamp.now() });
 }
 
-export async function addPartner(personId: string, partnerId: string): Promise<void> {
+/**
+ * The relationship editor adds and removes one link at a time, but every
+ * rule about parents (at most two, no self, no cycles) is a property of
+ * the whole set — so both of these read the current set and hand it to
+ * setParents rather than validating an edge on its own.
+ */
+export async function addParents(personId: string, parentIds: string[]): Promise<void> {
+  const person = await getPerson(personId);
+  if (!person) {
+    throw new Error(MISSING_PERSON_ERROR);
+  }
+  await setParents(personId, [...person.parentIds, ...parentIds]);
+}
+
+export async function removeParent(personId: string, parentId: string): Promise<void> {
+  const person = await getPerson(personId);
+  if (!person) {
+    throw new Error(MISSING_PERSON_ERROR);
+  }
+  await setParents(
+    personId,
+    person.parentIds.filter((id) => id !== parentId),
+  );
+}
+
+/**
+ * Reciprocal: a connection one way is the same connection the other, so
+ * both docs are edited in one batch and neither side is the owner.
+ */
+export async function addConnection(personId: string, otherId: string): Promise<void> {
+  if (personId === otherId) {
+    throw new Error(SELF_CONNECTION_ERROR);
+  }
   const now = Timestamp.now();
   const batch = firestore.batch();
-  batch.update(peopleCollection().doc(personId), { partnerIds: FieldValue.arrayUnion(partnerId), updatedAt: now });
-  batch.update(peopleCollection().doc(partnerId), { partnerIds: FieldValue.arrayUnion(personId), updatedAt: now });
+  batch.update(peopleCollection().doc(personId), { connectionIds: FieldValue.arrayUnion(otherId), updatedAt: now });
+  batch.update(peopleCollection().doc(otherId), { connectionIds: FieldValue.arrayUnion(personId), updatedAt: now });
   await batch.commit();
 }
 
-export async function removePartner(personId: string, partnerId: string): Promise<void> {
+export async function removeConnection(personId: string, otherId: string): Promise<void> {
   const now = Timestamp.now();
   const batch = firestore.batch();
-  batch.update(peopleCollection().doc(personId), { partnerIds: FieldValue.arrayRemove(partnerId), updatedAt: now });
-  batch.update(peopleCollection().doc(partnerId), { partnerIds: FieldValue.arrayRemove(personId), updatedAt: now });
+  batch.update(peopleCollection().doc(personId), { connectionIds: FieldValue.arrayRemove(otherId), updatedAt: now });
+  batch.update(peopleCollection().doc(otherId), { connectionIds: FieldValue.arrayRemove(personId), updatedAt: now });
   await batch.commit();
 }
 
 /**
  * Children aren't cascade-deleted — they just lose one parent link. Every
- * reference to `id` (as a parent or a partner) is stripped before the doc
- * itself is removed, so no dangling ids remain.
+ * reference to `id` (as a parent or a connection) is stripped before the
+ * doc itself is removed, so no dangling ids remain.
  */
 export async function deletePerson(id: string): Promise<void> {
   const now = Timestamp.now();
@@ -156,9 +204,9 @@ export async function deletePerson(id: string): Promise<void> {
     batch.update(doc.ref, { parentIds: FieldValue.arrayRemove(id), updatedAt: now });
   }
 
-  const partnersSnap = await peopleCollection().where("partnerIds", "array-contains", id).get();
-  for (const doc of partnersSnap.docs) {
-    batch.update(doc.ref, { partnerIds: FieldValue.arrayRemove(id), updatedAt: now });
+  const connectedSnap = await peopleCollection().where("connectionIds", "array-contains", id).get();
+  for (const doc of connectedSnap.docs) {
+    batch.update(doc.ref, { connectionIds: FieldValue.arrayRemove(id), updatedAt: now });
   }
 
   batch.delete(peopleCollection().doc(id));
@@ -176,7 +224,9 @@ export const peopleRepo = {
   updatePersona,
   setEmail,
   setParents,
-  addPartner,
-  removePartner,
+  addParents,
+  removeParent,
+  addConnection,
+  removeConnection,
   deletePerson,
 };

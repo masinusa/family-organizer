@@ -34,10 +34,12 @@ export interface PersonCard {
 export interface TreeConnector {
   /** SVG path data — rounded elbows rather than hard right angles. */
   d: string;
-  kind: "parent" | "partner";
-  /** Midpoint of a partner link, where the heart sits. */
-  markX?: number;
-  markY?: number;
+  /**
+   * What the line means, not how it looks: both kinds are drawn as the
+   * same plain stroke. A connection is deliberately unadorned — see
+   * PersonDoc.connectionIds for why it carries no label or symbol.
+   */
+  kind: "parent" | "connection";
 }
 
 export interface TreeLayout {
@@ -55,7 +57,7 @@ export interface TreeLayout {
  * doubles as a cycle guard). Two rules, both of which only ever push
  * generation numbers up, so this always converges:
  *  1. a person's generation >= max(parents' generation) + 1
- *  2. partners are pulled to the max of their linked generations
+ *  2. connected people are pulled to the max of their linked generations
  */
 export function computeGenerations(people: PersonDoc[]): Map<string, number> {
   const gen = new Map(people.map((p) => [p.id, 0]));
@@ -76,11 +78,11 @@ export function computeGenerations(people: PersonDoc[]): Map<string, number> {
     }
 
     for (const person of people) {
-      const partnerGens = person.partnerIds
+      const linkedGens = person.connectionIds
         .map((id) => gen.get(id))
         .filter((g): g is number => g !== undefined);
-      if (partnerGens.length === 0) continue;
-      const required = Math.max(gen.get(person.id)!, ...partnerGens);
+      if (linkedGens.length === 0) continue;
+      const required = Math.max(gen.get(person.id)!, ...linkedGens);
       if (required > gen.get(person.id)!) {
         gen.set(person.id, required);
         changed = true;
@@ -111,11 +113,11 @@ export function compactGenerations(gen: Map<string, number>): Map<string, number
 }
 
 /**
- * DFS pre-order placement from generation-0 roots — each person's partners
- * (including partner-of-partner chains, for blended families) are placed
- * adjacent, then their children are placed grouped by exact parentIds set
- * (not row position), so a person who had children with two different
- * partners produces two visually distinct sibling clusters.
+ * DFS pre-order placement from generation-0 roots — everyone a person is
+ * connected to (including chains of connections, for blended families) is
+ * placed adjacent, then their children are placed grouped by exact
+ * parentIds set (not row position), so a person who had children with two
+ * different co-parents produces two visually distinct sibling clusters.
  *
  * This is a simple deterministic heuristic, not a crossing-minimizing
  * layout (general layered-DAG drawing is NP-hard) — fine for a
@@ -153,14 +155,14 @@ export function computeColumns(people: PersonDoc[]): Map<string, number> {
     column.set(rootId, nextColumn++);
     unitIds.push(rootId);
 
-    const queue = [...byId.get(rootId)!.partnerIds];
+    const queue = [...byId.get(rootId)!.connectionIds];
     while (queue.length > 0) {
-      const partnerId = queue.shift()!;
-      if (visited.has(partnerId) || !byId.has(partnerId)) continue;
-      visited.add(partnerId);
-      column.set(partnerId, nextColumn++);
-      unitIds.push(partnerId);
-      queue.push(...byId.get(partnerId)!.partnerIds);
+      const linkedId = queue.shift()!;
+      if (visited.has(linkedId) || !byId.has(linkedId)) continue;
+      visited.add(linkedId);
+      column.set(linkedId, nextColumn++);
+      unitIds.push(linkedId);
+      queue.push(...byId.get(linkedId)!.connectionIds);
     }
 
     for (const group of childrenGroups(unitIds)) {
@@ -251,15 +253,15 @@ export function computeXPositions(
       const kids = childrenOf.get(id) ?? [];
       const nextId = row[i + 1];
 
-      // A couple raising the same children is centred as a single unit,
-      // so the pair straddles its children rather than one partner
-      // hogging the centre and shoving the other off to the side.
-      const asCouple =
+      // Two connected people raising the same children are centred as a
+      // single unit, so the pair straddles its children rather than one
+      // of them hogging the centre and shoving the other off to the side.
+      const asPair =
         nextId !== undefined &&
-        byId.get(id)!.partnerIds.includes(nextId) &&
+        byId.get(id)!.connectionIds.includes(nextId) &&
         sameMembers(kids, childrenOf.get(nextId) ?? []);
 
-      if (asCouple) {
+      if (asPair) {
         const center = childCenter(kids);
         const desired = center === null ? cursor : center - (stride + CARD_WIDTH) / 2;
         const left = Math.max(desired, cursor);
@@ -348,24 +350,19 @@ export function buildTreeLayout(people: PersonDoc[]): TreeLayout {
   const cardById = new Map(cards.map((c) => [c.person.id, c]));
   const connectors: TreeConnector[] = [];
 
+  // Connections are reciprocal, so each pair is only drawn once.
   const seenPairs = new Set<string>();
   for (const card of cards) {
-    for (const partnerId of card.person.partnerIds) {
-      const key = [card.person.id, partnerId].sort().join("|");
+    for (const otherId of card.person.connectionIds) {
+      const key = [card.person.id, otherId].sort().join("|");
       if (seenPairs.has(key)) continue;
       seenPairs.add(key);
-      const partnerCard = cardById.get(partnerId);
-      if (!partnerCard) continue;
-      const [left, right] = card.x <= partnerCard.x ? [card, partnerCard] : [partnerCard, card];
-      const x1 = left.x + CARD_WIDTH;
-      const y1 = left.y + CARD_HEIGHT / 2;
-      const x2 = right.x;
-      const y2 = right.y + CARD_HEIGHT / 2;
+      const otherCard = cardById.get(otherId);
+      if (!otherCard) continue;
+      const [left, right] = card.x <= otherCard.x ? [card, otherCard] : [otherCard, card];
       connectors.push({
-        d: `M ${x1} ${y1} L ${x2} ${y2}`,
-        kind: "partner",
-        markX: (x1 + x2) / 2,
-        markY: (y1 + y2) / 2,
+        d: `M ${left.x + CARD_WIDTH} ${left.y + CARD_HEIGHT / 2} L ${right.x} ${right.y + CARD_HEIGHT / 2}`,
+        kind: "connection",
       });
     }
   }

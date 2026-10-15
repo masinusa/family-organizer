@@ -168,49 +168,138 @@
 <% } %>
 <% } %>
 
-<h2>Parents</h2>
-<p class="who">Choose up to 2. Ctrl/Cmd-click to select or deselect one.</p>
-<form method="post" action="/family/<%= it.person.id %>/parents">
-  <select name="parentIds" multiple size="6">
-    <% it.people.forEach(function (p) { %>
-    <option value="<%= p.id %>" <%= it.person.parentIds.includes(p.id) ? "selected" : "" %>><%= p.name %></option>
-    <% }) %>
-  </select>
-  <button type="submit">Save parents</button>
-</form>
+<h2>Relationships</h2>
+<p class="who">
+  A parent runs down the tree; a relationship is a plain line across it &mdash; partners,
+  co-parents, anyone who belongs side by side.
+</p>
 
-<h2>Partners</h2>
-<% it.partners.forEach(function (partner) { %>
-<div class="card">
-  <div class="bar"></div>
-  <div>
-    <div><strong><%= partner.name %></strong></div>
-    <form class="inline" method="post" action="/family/<%= it.person.id %>/partners/<%= partner.id %>/remove">
-      <button type="submit">Remove</button>
+<%
+  // Three sources, one list: every link is shown in the same shape, so
+  // there is a single place to look. Children are listed for context but
+  // edited from the card of the child, which is where that link lives.
+  // (Mind the apostrophes: a stray one in a comment inside an Eta tag
+  // reads as an opening quote and swallows the closing delimiter.)
+  var rows = []
+    .concat(
+      it.parents.map(function (p) {
+        return { kind: "parent", tag: "↑ Parent", person: p, removable: true };
+      }),
+    )
+    .concat(
+      it.connections.map(function (p) {
+        return { kind: "connection", tag: "↔ Relationship", person: p, removable: true };
+      }),
+    )
+    .concat(
+      it.children.map(function (p) {
+        return { kind: "child", tag: "↓ Child", person: p, removable: false };
+      }),
+    );
+  var canAddParent = !it.parentsFull && it.parentOptions.length > 0;
+  var canAddConnection = it.connectionOptions.length > 0;
+%>
+
+<% if (rows.length === 0) { %>
+<p class="empty-state">No relationships yet.</p>
+<% } else { %>
+<ul class="rel-list">
+  <% rows.forEach(function (row) { %>
+  <li class="rel-row">
+    <span class="rel-tag"><%= row.tag %></span>
+    <a href="/family/<%= row.person.id %>"><%= row.person.name %></a>
+    <% if (row.removable) { %>
+    <form method="post" action="/family/<%= it.person.id %>/relationships/remove">
+      <input type="hidden" name="kind" value="<%= row.kind %>" />
+      <input type="hidden" name="otherId" value="<%= row.person.id %>" />
+      <button type="submit" class="link-btn">Remove</button>
     </form>
-  </div>
-</div>
-<% }) %>
-<form method="post" action="/family/<%= it.person.id %>/partners">
+    <% } else { %>
+    <span class="rel-note">edit on their card</span>
+    <% } %>
+  </li>
+  <% }) %>
+</ul>
+<% } %>
+
+<% if (!canAddParent && !canAddConnection) { %>
+<p class="who field-hint">
+  <% if (it.parentsFull) { %>Two parents already, and everyone<% } else { %>Everyone<% } %> else on
+  the tree is linked to <%= it.person.name %> already.
+</p>
+<% } else { %>
+<form class="rel-add" id="rel-add" method="post" action="/family/<%= it.person.id %>/relationships">
   <label>
-    Add a partner
-    <select name="partnerId">
-      <% it.people.filter(function (p) { return !it.person.partnerIds.includes(p.id); }).forEach(function (p) { %>
-      <option value="<%= p.id %>"><%= p.name %></option>
-      <% }) %>
+    Add a relationship
+    <select id="rel-kind" name="kind">
+      <option value="parent" <%= canAddParent ? "" : "disabled" %> <%= canAddParent ? "selected" : "" %>>
+        Parent &mdash; one or two people above<%= it.parentsFull ? " (already has two)" : "" %>
+      </option>
+      <option value="connection" <%= canAddConnection ? "" : "disabled" %> <%= canAddParent ? "" : "selected" %>>
+        Relationship &mdash; one person alongside
+      </option>
     </select>
   </label>
-  <button type="submit">Add partner</button>
-</form>
 
-<% if (it.children.length > 0) { %>
-<h2>Children</h2>
-<% it.children.forEach(function (child) { %>
-<div class="card">
-  <div class="bar"></div>
-  <div><a href="/family/<%= child.id %>"><%= child.name %></a></div>
-</div>
-<% }) %>
+  <% if (canAddParent) { %>
+  <div class="rel-fields" data-rel-kind="parent">
+    <label>
+      Their parent
+      <select name="parentIds">
+        <option value="">&mdash; choose someone &mdash;</option>
+        <% it.parentOptions.forEach(function (p) { %>
+        <option value="<%= p.id %>"><%= p.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <% if (it.person.parentIds.length === 0 && it.parentOptions.length > 1) { %>
+    <label>
+      And their other parent <span class="rel-optional">optional</span>
+      <select name="parentIds">
+        <option value="">&mdash; nobody &mdash;</option>
+        <% it.parentOptions.forEach(function (p) { %>
+        <option value="<%= p.id %>"><%= p.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <% } %>
+  </div>
+  <% } %>
+
+  <% if (canAddConnection) { %>
+  <div class="rel-fields" data-rel-kind="connection" <%= canAddParent ? "hidden" : "" %>>
+    <label>
+      Relationship with
+      <select name="connectionId">
+        <option value="">&mdash; choose someone &mdash;</option>
+        <% it.connectionOptions.forEach(function (p) { %>
+        <option value="<%= p.id %>"><%= p.name %></option>
+        <% }) %>
+      </select>
+    </label>
+  </div>
+  <% } %>
+
+  <button type="submit">Add</button>
+</form>
+<script>
+  // Only the chosen kind's fields are on screen. The inactive group still
+  // submits its (empty) select, which is harmless: the route reads the
+  // fields that go with the submitted "kind" and ignores the rest.
+  (function () {
+    var kind = document.getElementById("rel-kind");
+    var groups = document.getElementById("rel-add").querySelectorAll("[data-rel-kind]");
+
+    function sync() {
+      for (var i = 0; i < groups.length; i += 1) {
+        groups[i].hidden = groups[i].getAttribute("data-rel-kind") !== kind.value;
+      }
+    }
+
+    kind.addEventListener("change", sync);
+    sync();
+  })();
+</script>
 <% } %>
 
 <div class="actions">

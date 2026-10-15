@@ -3,10 +3,13 @@ import { isAdmin, requireAdmin } from "../middleware/access-control.js";
 import { render } from "../lib/render.js";
 import { normalizeEmail } from "../lib/email.js";
 import {
+  findDescendantIds,
   peopleRepo,
   TOO_MANY_PARENTS_ERROR,
   SELF_PARENT_ERROR,
   CYCLE_PARENT_ERROR,
+  SELF_CONNECTION_ERROR,
+  MISSING_PERSON_ERROR,
 } from "../lib/people-repo.js";
 import * as usersRepo from "../lib/users-repo.js";
 import { IAP_SYNC_WARNING, LAST_ADMIN_ERROR } from "../lib/users-repo.js";
@@ -30,7 +33,16 @@ import type { PersonDoc, PersonaInput, UserRole } from "../lib/types.js";
 
 export const familyRouter = Router();
 
-const PARENT_ERRORS: string[] = [TOO_MANY_PARENTS_ERROR, SELF_PARENT_ERROR, CYCLE_PARENT_ERROR];
+/** Rejections the editor can show in place rather than as a 500. */
+const RELATIONSHIP_ERRORS: string[] = [
+  TOO_MANY_PARENTS_ERROR,
+  SELF_PARENT_ERROR,
+  CYCLE_PARENT_ERROR,
+  SELF_CONNECTION_ERROR,
+  MISSING_PERSON_ERROR,
+];
+/** The two shapes a relationship can take — see views/person.eta. */
+const RELATIONSHIP_KINDS = ["parent", "connection"];
 const VALID_ROLES: UserRole[] = ["admin", "member"];
 const BLURB_MAX = 60;
 
@@ -70,7 +82,12 @@ function parsePersona(body: Record<string, unknown>): PersonaInput | { error: st
   };
 }
 
-function parseParentIds(raw: unknown): string[] {
+/**
+ * The parent picker submits two `parentIds` fields, so this arrives as an
+ * array or (when only one is chosen) a bare string. Blanks are dropped —
+ * leaving the second dropdown on "nobody" is how you add one parent.
+ */
+function parsePersonIds(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === "string" && v !== "");
   return typeof raw === "string" && raw ? [raw] : [];
 }
@@ -114,13 +131,23 @@ async function renderPerson(req: Request, id: string, notice: { error?: string; 
   const byId = new Map(people.map((p) => [p.id, p]));
   const resolve = (ids: string[]) => ids.map((pid) => byId.get(pid)).filter((p): p is PersonDoc => !!p);
 
+  // The pickers only offer links that would actually be accepted, so the
+  // rules in people-repo are a backstop rather than the way you find out:
+  // a descendant can't be a parent (that's the cycle), and an existing
+  // link isn't worth offering twice.
+  const others = people.filter((p) => p.id !== person.id);
+  const descendants = findDescendantIds(person.id, people);
+
   return render("person", {
     ...chrome(req),
     person,
-    people: people.filter((p) => p.id !== person.id),
     parents: resolve(person.parentIds),
-    partners: resolve(person.partnerIds),
+    connections: resolve(person.connectionIds),
     children: people.filter((p) => p.parentIds.includes(person.id)),
+    parentOptions: others.filter((p) => !person.parentIds.includes(p.id) && !descendants.has(p.id)),
+    connectionOptions: others.filter((p) => !person.connectionIds.includes(p.id)),
+    /** At two parents already, so the parent half of the form is closed off. */
+    parentsFull: person.parentIds.length >= 2,
     account: accountByPersonId.get(person.id) ?? null,
     // Accounts belonging to nobody on the tree yet — the candidates for
     // "link this person to an existing account".
@@ -353,12 +380,34 @@ familyRouter.post("/family/:id/account", requireAdmin, async (req, res, next) =>
 
 /* -------------------------- relationships ------------------------- */
 
-familyRouter.post("/family/:id/parents", requireAdmin, async (req, res, next) => {
+/**
+ * One editor, two kinds of link: a parent relationship (one or two people
+ * on the row above) or a connection (one person alongside). Both are
+ * added here and removed by the sibling route below, so the person page
+ * has a single relationships section rather than one form per kind.
+ */
+familyRouter.post("/family/:id/relationships", requireAdmin, async (req, res, next) => {
   try {
-    await peopleRepo.setParents(req.params.id, parseParentIds(req.body.parentIds));
+    const kind = str(req.body.kind);
+    if (!RELATIONSHIP_KINDS.includes(kind)) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: "Choose a kind of relationship." }));
+      return;
+    }
+
+    const ids = parsePersonIds(kind === "parent" ? req.body.parentIds : req.body.connectionId);
+    if (ids.length === 0) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: "Choose at least one person." }));
+      return;
+    }
+
+    if (kind === "parent") {
+      await peopleRepo.addParents(req.params.id, ids);
+    } else {
+      await peopleRepo.addConnection(req.params.id, ids[0]!);
+    }
     res.redirect(`/family/${req.params.id}`);
   } catch (err) {
-    if (err instanceof Error && PARENT_ERRORS.includes(err.message)) {
+    if (err instanceof Error && RELATIONSHIP_ERRORS.includes(err.message)) {
       res.status(400).send(await renderPerson(req, req.params.id, { error: err.message }));
       return;
     }
@@ -366,27 +415,26 @@ familyRouter.post("/family/:id/parents", requireAdmin, async (req, res, next) =>
   }
 });
 
-familyRouter.post("/family/:id/partners", requireAdmin, async (req, res, next) => {
+familyRouter.post("/family/:id/relationships/remove", requireAdmin, async (req, res, next) => {
   try {
-    const partnerId = str(req.body.partnerId);
-    if (!partnerId || partnerId === req.params.id) {
-      res.status(400).send(
-        await renderPerson(req, req.params.id, { error: "Choose a different person as a partner." }),
-      );
+    const kind = str(req.body.kind);
+    const otherId = str(req.body.otherId);
+    if (!RELATIONSHIP_KINDS.includes(kind) || !otherId) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: "Nothing to remove." }));
       return;
     }
-    await peopleRepo.addPartner(req.params.id, partnerId);
-    res.redirect(`/family/${req.params.id}`);
-  } catch (err) {
-    next(err);
-  }
-});
 
-familyRouter.post("/family/:id/partners/:partnerId/remove", requireAdmin, async (req, res, next) => {
-  try {
-    await peopleRepo.removePartner(req.params.id, req.params.partnerId);
+    if (kind === "parent") {
+      await peopleRepo.removeParent(req.params.id, otherId);
+    } else {
+      await peopleRepo.removeConnection(req.params.id, otherId);
+    }
     res.redirect(`/family/${req.params.id}`);
   } catch (err) {
+    if (err instanceof Error && RELATIONSHIP_ERRORS.includes(err.message)) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: err.message }));
+      return;
+    }
     next(err);
   }
 });
