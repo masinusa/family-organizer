@@ -382,6 +382,40 @@ don't rewrite — newest entry last in each section.
   with the whole recomputed set, because every one of those rules is a
   property of the set rather than of a single edge.
 
+- An admin can **view the site as another account** ("view as", the warning
+  triangle in the top bar). `middleware/impersonation.ts` reads a `view-as`
+  cookie and *rewrites `req.user`* between `iapAuth` and
+  `requireFamilyMember`, so the pretend identity flows through the app's own
+  authorization layer and everything below it: viewing as a member really is
+  refused `/family/accounts`, and an event created while impersonating is
+  created *by* that member. That is the whole reason it works at the
+  identity layer rather than as a per-page preview — a preview that fakes
+  only the rendering would miss exactly the bugs this is for.
+  - The cookie is unsigned on purpose. It names only *who* to become, and is
+    honoured only after the IAP-verified email has been looked up and found
+    to be an admin, so forging it gains nothing; a non-admin who sets it by
+    hand just has it deleted on the next request.
+  - `req.impersonator` holds the real admin's doc while impersonating, and
+    the impersonation controls authorize against *that* (`realAdmin()`),
+    never `req.appUser` — otherwise viewing as a member would take away the
+    control that gets you back. For the same reason `POST /impersonate/stop`
+    is mounted ahead of `requireFamilyMember` and has no guard at all:
+    clearing your own cookie can't grant anything, and it has to work in the
+    one case where every other page 403s (the impersonated account was
+    deleted meanwhile). `forbidden()` in `access-control.ts` renders the
+    banner too, so a 403 is never a dead end.
+  - The account list is fetched when the picker dialog opens
+    (`GET /impersonate/picker`, a bare fragment) rather than rendered into
+    every page — same pattern as `GET /events/:id/card`. It costs two
+    Firestore reads and only an admin ever sees it, so no normal page render
+    should pay for it.
+- `lib/chrome.ts` is the one place the top bar's data is assembled. Four
+  routers each had their own `{ email, isAdmin, active }` copy; the
+  impersonation banner added fields that have to stay in step across all of
+  them, which is one copy too many. Note `isAdmin` there is the *effective*
+  role and `canImpersonate` the real one — they deliberately disagree while
+  impersonating.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub

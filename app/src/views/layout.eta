@@ -69,6 +69,58 @@
       @media (max-width: 30rem) {
         .topnav-user { display: none; }
       }
+      /* Impersonation: deliberately the loudest thing on the page, because
+         forgetting you're somebody else is how you file a bug against
+         yourself. */
+      .viewas-btn {
+        display: inline-flex;
+        align-items: center;
+        margin: 0;
+        padding: 0.3rem;
+        background: none;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .viewas-btn:hover { color: var(--accent); }
+      .viewas-btn.on { color: var(--danger); }
+      .viewas-btn svg {
+        width: 1.25rem;
+        height: 1.25rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .viewas-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.6rem 1rem;
+        padding: 0.55rem 1.5rem;
+        background: var(--accent);
+        color: #fff;
+        font-size: 0.85rem;
+      }
+      .viewas-bar strong { font-weight: 800; }
+      .viewas-bar-text { margin-right: auto; }
+      .viewas-bar form { margin: 0; }
+      .viewas-bar button {
+        margin: 0;
+        padding: 0.3rem 0.8rem;
+        background: #fff;
+        color: var(--ink);
+        border: none;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      /* The picker is mostly a <select>; it needs the close button's
+         positioning context but not the event form's height. */
+      #viewas-dialog { position: relative; }
+      #viewas-body h2 { padding-right: 1.5rem; }
       h1 { font-family: var(--font-head); font-weight: 800; font-size: 1.5rem; margin: 0 0 0.9rem; text-wrap: balance; }
       h2 { font-family: var(--font-head); font-weight: 700; font-size: 1.05rem; margin: 1.75rem 0 0.6rem; }
       a { color: var(--primary); }
@@ -1019,6 +1071,18 @@
     </style>
   </head>
   <body>
+    <% if (it.impersonator) { %>
+    <div class="viewas-bar">
+      <span class="viewas-bar-text">
+        <span aria-hidden="true">&#9888;</span>
+        Viewing as <strong><%= it.email %></strong> &mdash; you're really <%= it.impersonator %>
+      </span>
+      <form method="post" action="/impersonate/stop">
+        <input type="hidden" name="return" value="<%= it.path %>" />
+        <button type="submit">Back to me</button>
+      </form>
+    </div>
+    <% } %>
     <% if (it.email) { %>
     <nav class="topnav">
       <a class="topnav-brand" href="/">Family Hub</a>
@@ -1027,6 +1091,21 @@
         <a href="/family" class="<%= it.active === "family" ? "active" : "" %>">Family</a>
       </div>
       <div class="topnav-user"><%= it.email %></div>
+      <% if (it.canImpersonate) { %>
+      <button
+        class="viewas-btn<%= it.impersonator ? " on" : "" %>"
+        type="button"
+        id="viewas-open"
+        title="View the site as another user"
+        aria-label="View as another user"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M12 3.3 1.9 20.7h20.2z" />
+          <path d="M12 9.6v4.6" />
+          <path d="M12 17.3h.01" />
+        </svg>
+      </button>
+      <% } %>
     </nav>
     <% } %>
     <div class="wrap"><%~ it.body %></div>
@@ -1035,6 +1114,46 @@
       <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15a4 4 0 0 1-4 4H8l-4 3v-7a4 4 0 0 1-2-3.5v-5A4 4 0 0 1 6 3h10a4 4 0 0 1 4 4z" /></svg>
       <span>Feedback</span>
     </a>
+    <% } %>
+    <% if (it.canImpersonate) { %>
+    <dialog id="viewas-dialog">
+      <button class="dialog-x" type="button" id="viewas-close" aria-label="Close">&times;</button>
+      <div id="viewas-body"></div>
+    </dialog>
+    <script>
+      (function () {
+        var dialog = document.getElementById("viewas-dialog");
+        var body = document.getElementById("viewas-body");
+        <%
+          /* Raw, not <%= %>: a <script> body is raw text the parser never
+             decodes, so an escaped "&" would arrive mangled. The value is
+             a server-validated path, never raw input. */
+        %>
+        var returnTo = <%~ JSON.stringify(it.path) %>;
+
+        document.getElementById("viewas-open").addEventListener("click", function () {
+          /* Fetched on open, not rendered into every page: the account
+             list is two Firestore reads and only an admin ever sees it. */
+          fetch("/impersonate/picker?return=" + encodeURIComponent(returnTo), {
+            headers: { "X-Requested-With": "fetch" },
+          })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error("picker " + response.status);
+              }
+              return response.text();
+            })
+            .then(function (html) {
+              body.innerHTML = html;
+              dialog.showModal();
+            });
+        });
+
+        document.getElementById("viewas-close").addEventListener("click", function () {
+          dialog.close();
+        });
+      })();
+    </script>
     <% } %>
   </body>
 </html>

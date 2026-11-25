@@ -14,18 +14,13 @@ import {
   type FormValues,
 } from "../lib/event-input.js";
 import * as eventsRepo from "../lib/events-repo.js";
+import { chrome } from "../lib/chrome.js";
 import { render } from "../lib/render.js";
 import { avatarFor } from "../lib/people.js";
 import * as usersRepo from "../lib/users-repo.js";
-import { isAdmin } from "../middleware/access-control.js";
 import type { RsvpStatus } from "../lib/types.js";
 
 export const eventsRouter = Router();
-
-/** The bits every page needs for the nav bar. */
-function chrome(req: Request): Record<string, unknown> {
-  return { email: req.user?.email, isAdmin: isAdmin(req), active: "calendar" };
-}
 
 async function renderForm(req: Request, values: FormValues, error: string | null): Promise<string> {
   const [members, categories] = await Promise.all([usersRepo.listUsers(), listCategories()]);
@@ -34,7 +29,7 @@ async function renderForm(req: Request, values: FormValues, error: string | null
     ...eventFieldsData(values, members, categories.map(toChip)),
     error,
     returnTo,
-    ...chrome(req),
+    ...chrome(req, "calendar"),
   });
 }
 
@@ -144,7 +139,7 @@ eventsRouter.get("/events/:id", async (req, res, next) => {
       res.status(404).send("Event not found");
       return;
     }
-    res.send(render("event-detail", { ...data, ...chrome(req) }));
+    res.send(render("event-detail", { ...data, ...chrome(req, "calendar") }));
   } catch (err) {
     next(err);
   }

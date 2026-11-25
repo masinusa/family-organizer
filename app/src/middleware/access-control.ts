@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { render } from "../lib/render.js";
 import { usersRepo } from "../lib/users-repo.js";
+import { impersonationState } from "./impersonation.js";
 import type { UserDoc } from "../lib/types.js";
 
 declare module "express-serve-static-core" {
@@ -9,8 +10,20 @@ declare module "express-serve-static-core" {
   }
 }
 
-function forbidden(res: Response, message: string): void {
-  res.status(403).send(render("forbidden", { message }));
+/**
+ * Carries the impersonation banner, because an admin viewing as a member
+ * hitting an admin-only page is the single most likely way to land here —
+ * and without the banner's "Back to me" the only way out would be
+ * clearing cookies by hand.
+ */
+function forbidden(req: Request, res: Response, message: string): void {
+  const { impersonator, path } = impersonationState(req);
+  res.status(403).send(render("forbidden", {
+    message,
+    impersonator,
+    path,
+    canImpersonate: impersonator !== null,
+  }));
 }
 
 /**
@@ -23,7 +36,7 @@ function forbidden(res: Response, message: string): void {
 export async function requireFamilyMember(req: Request, res: Response, next: NextFunction): Promise<void> {
   const appUser = await usersRepo.getUser(req.user!.email);
   if (!appUser) {
-    forbidden(res, "You don't have access to this site yet. Ask a family admin to add you.");
+    forbidden(req, res, "You don't have access to this site yet. Ask a family admin to add you.");
     return;
   }
   req.appUser = appUser;
@@ -32,7 +45,7 @@ export async function requireFamilyMember(req: Request, res: Response, next: Nex
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (req.appUser?.role !== "admin") {
-    forbidden(res, "You don't have permission to view this page.");
+    forbidden(req, res, "You don't have permission to view this page.");
     return;
   }
   next();

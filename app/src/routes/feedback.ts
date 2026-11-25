@@ -6,8 +6,9 @@ import {
   isFeedbackStatus,
   parseFeedbackInput,
 } from "../lib/feedback-validation.js";
+import { chrome } from "../lib/chrome.js";
 import { render } from "../lib/render.js";
-import { isAdmin, requireAdmin } from "../middleware/access-control.js";
+import { requireAdmin } from "../middleware/access-control.js";
 
 export const feedbackRouter = Router();
 
@@ -16,9 +17,7 @@ function renderFeedbackForm(req: Request, error: string | null, submitted: boole
     categories: FEEDBACK_CATEGORIES,
     error,
     submitted,
-    email: req.user?.email,
-    isAdmin: isAdmin(req),
-    active: null,
+    ...chrome(req, null),
   });
 }
 
@@ -49,9 +48,7 @@ feedbackRouter.get("/admin/feedback", requireAdmin, async (req, res, next) => {
         feedback,
         statuses: FEEDBACK_STATUSES,
         error: null,
-        email: req.user?.email,
-        isAdmin: isAdmin(req),
-        active: "admin",
+        ...chrome(req, "admin"),
       }),
     );
   } catch (err) {
@@ -69,9 +66,7 @@ feedbackRouter.post("/admin/feedback/:id/status", requireAdmin, async (req, res,
           feedback,
           statuses: FEEDBACK_STATUSES,
           error: "Choose a valid feedback status.",
-          email: req.user?.email,
-          isAdmin: isAdmin(req),
-          active: "admin",
+          ...chrome(req, "admin"),
         }),
       );
     } catch (err) {

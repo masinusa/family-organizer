@@ -6,7 +6,7 @@ import { eventFieldsData } from "./event-fields.js";
 import { attendeeSummary, blankFormValues, formatDateInput } from "./event-input.js";
 import { render } from "./render.js";
 import * as usersRepo from "./users-repo.js";
-import { isAdmin } from "../middleware/access-control.js";
+import { chrome } from "./chrome.js";
 
 export interface MonthSelection {
   year: number;
@@ -121,8 +121,6 @@ export async function renderCalendarPage(
       chips,
     ),
     categoryError,
-    email: req.user?.email,
-    isAdmin: isAdmin(req),
-    active: "calendar",
+    ...chrome(req, "calendar"),
   });
 }

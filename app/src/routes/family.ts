@@ -1,5 +1,6 @@
 import { Router, type Request } from "express";
-import { isAdmin, requireAdmin } from "../middleware/access-control.js";
+import { requireAdmin } from "../middleware/access-control.js";
+import { chrome } from "../lib/chrome.js";
 import { render } from "../lib/render.js";
 import { normalizeEmail } from "../lib/email.js";
 import {
@@ -92,11 +93,6 @@ function parsePersonIds(raw: unknown): string[] {
   return typeof raw === "string" && raw ? [raw] : [];
 }
 
-/** Shared chrome every page needs for the nav. */
-function chrome(req: Request) {
-  return { email: req.user?.email, isAdmin: isAdmin(req), active: "family" };
-}
-
 async function renderTree(req: Request) {
   const [people, users] = await Promise.all([peopleRepo.listPeople(), usersRepo.listUsers()]);
   const { accountByPersonId } = matchAccounts(people, users);
@@ -115,7 +111,7 @@ async function renderTree(req: Request) {
     isYou: you?.id === card.person.id,
   }));
 
-  return render("family", { ...chrome(req), layout, cards });
+  return render("family", { ...chrome(req, "family"), layout, cards });
 }
 
 /** Null when the person doesn't exist, so callers can 404. */
@@ -139,7 +135,7 @@ async function renderPerson(req: Request, id: string, notice: { error?: string; 
   const descendants = findDescendantIds(person.id, people);
 
   return render("person", {
-    ...chrome(req),
+    ...chrome(req, "family"),
     person,
     parents: resolve(person.parentIds),
     connections: resolve(person.connectionIds),
@@ -177,7 +173,7 @@ async function renderAccounts(req: Request, notice: { error?: string; warning?: 
   }));
 
   return render("accounts", {
-    ...chrome(req),
+    ...chrome(req, "family"),
     rows,
     error: notice.error ?? null,
     warning: notice.warning ?? null,
@@ -206,14 +202,14 @@ familyRouter.get("/family/accounts", requireAdmin, async (req, res, next) => {
 });
 
 familyRouter.get("/family/new", requireAdmin, (req, res) => {
-  res.send(render("person-new", { ...chrome(req), error: null }));
+  res.send(render("person-new", { ...chrome(req, "family"), error: null }));
 });
 
 familyRouter.post("/family/people", requireAdmin, async (req, res, next) => {
   try {
     const name = str(req.body.name);
     if (!name) {
-      res.status(400).send(render("person-new", { ...chrome(req), error: "A name is required." }));
+      res.status(400).send(render("person-new", { ...chrome(req, "family"), error: "A name is required." }));
       return;
     }
     const email = str(req.body.email);
