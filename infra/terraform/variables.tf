@@ -59,3 +59,9 @@ variable "placeholder_image" {
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
+
+variable "family_mailbox_address" {
+  description = "Shared family mailbox a subscription can be registered to. A subscription whose account email matches this one offers \"Recent mail\" in the vault, read over IMAP with the app password in Secret Manager. Empty disables that feature."
+  type        = string
+  default     = ""
+}

@@ -1065,6 +1065,141 @@
       .group-label.seg-invited { background: var(--border); color: var(--muted); }
       .group .pchip { font-size: 0.85rem; }
       .created-by { font-size: 0.85rem; color: var(--muted); margin: 1.25rem 0 0; }
+      /* --- subscriptions vault --- */
+      .sub-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; min-width: 0; }
+      .sub-main { min-width: 0; flex: 1 1 auto; }
+      /* The whole card is the link, the way .person-card is on the tree:
+         the name alone rendered as plain bold text, so nothing in the row
+         said a card opens anything. */
+      .sub-card,
+      .mail-card {
+        text-decoration: none;
+        color: var(--ink);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      }
+      .sub-card:hover,
+      .sub-card:focus-visible,
+      .mail-card:hover,
+      .mail-card:focus-visible {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(38, 41, 31, 0.14);
+        border-color: var(--primary);
+      }
+      /* Pressed, rather than stuck in the hover lift, on a touch screen. */
+      .sub-card:active,
+      .mail-card:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(38, 41, 31, 0.05); }
+      .sub-name {
+        display: block;
+        font-family: var(--font-head);
+        font-weight: 800;
+        font-size: 1rem;
+        color: var(--primary);
+      }
+      .sub-card:hover .sub-name,
+      .sub-card:focus-visible .sub-name,
+      .mail-card:hover .sub-name,
+      .mail-card:focus-visible .sub-name {
+        text-decoration: underline;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 3px;
+      }
+      /* .sheet-chev's geometry, turned to point the way the card goes. */
+      .card-chev {
+        flex-shrink: 0;
+        width: 0.45rem;
+        height: 0.45rem;
+        border-right: 2px solid var(--primary);
+        border-bottom: 2px solid var(--primary);
+        transform: rotate(-45deg);
+        transition: transform 0.12s ease;
+      }
+      .sub-card:hover .card-chev,
+      .sub-card:focus-visible .card-chev,
+      .mail-card:hover .card-chev,
+      .mail-card:focus-visible .card-chev { transform: translateX(0.15rem) rotate(-45deg); }
+      .vault-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+      .vault-actions form { margin: 0; }
+      .vault-actions .new-btn { margin: 0; }
+      /* A revealed password reads as a thing handed over, not page copy:
+         boxed, monospace, and visibly on a timer. */
+      .reveal {
+        margin-top: 1rem;
+        padding: 0.9rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--accent);
+        border-left: 4px solid var(--accent);
+        border-radius: var(--radius);
+      }
+      .reveal-label { margin: 0 0 0.4rem; font-size: 0.78rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      .reveal-value {
+        display: block;
+        /* A shared password can be long and is read character by character,
+           so it wraps anywhere rather than overflowing the box. */
+        overflow-wrap: anywhere;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 1.05rem;
+        font-weight: 700;
+        user-select: all;
+      }
+      .reveal-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+      .reveal-row .new-btn { margin: 0; }
+      .reveal .hint { margin-top: 0.6rem; }
+      /* The history rows carry a per-version "get" button, pushed to the
+         far edge so the dates still read as a column. */
+      .vault-history-row .roster-name { flex: 1 1 auto; }
+      .vault-history-row form { margin: 0 0 0 auto; flex-shrink: 0; }
+      .vault-history-row .new-btn { margin: 0; padding: 0.3rem 0.7rem; font-size: 0.78rem; }
+      /* A mail card is a <button>, so the base button's pill shape and
+         accent fill have to come back off; everything else is .card. */
+      .mail-card {
+        width: 100%;
+        margin-top: 0;
+        padding: 0.85rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--ink);
+        font-weight: 400;
+        font-size: 1rem;
+        text-align: left;
+      }
+      /* A link inside the body, rendered as something to press rather than
+         a URL to copy. Inline-block so it keeps its place in the sentence
+         the email wrote, and the host is always the start of the label — it
+         is the part worth reading before pressing. */
+      .mail-link {
+        display: inline-block;
+        margin: 0.15rem 0;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #fff;
+        font-family: var(--font-body);
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-decoration: none;
+        overflow-wrap: anywhere;
+      }
+      .mail-link:hover,
+      .mail-link:focus-visible { background: color-mix(in srgb, var(--primary) 85%, #000); }
+      .mail-link::after { content: " ↗"; font-weight: 400; }
+      /* The body is text/plain: its line breaks are the only structure it
+         has, so it is pre-wrapped rather than reflowed, and scrolls inside
+         the dialog instead of stretching it. */
+      .mail-body {
+        margin: 0.75rem 0 0;
+        max-height: 50vh;
+        overflow: auto;
+        padding: 0.75rem;
+        border-radius: 8px;
+        background: var(--bg);
+        font-family: inherit;
+        font-size: 0.86rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        user-select: text;
+      }
       .feedback-fab {
         position: fixed;
         right: 1.5rem;
@@ -1127,6 +1262,7 @@
       <div class="topnav-links">
         <a href="/" class="<%= it.active === "calendar" ? "active" : "" %>">Calendar</a>
         <a href="/family" class="<%= it.active === "family" ? "active" : "" %>">Family</a>
+        <a href="/subscriptions" class="<%= it.active === "vault" ? "active" : "" %>">Vault</a>
       </div>
       <div class="topnav-user"><%~ include("./_persona-chip", { persona: it.viewer, link: true }) %></div>
       <% if (it.canImpersonate) { %>

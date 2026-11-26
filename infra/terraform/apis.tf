@@ -5,6 +5,7 @@ locals {
     "iap.googleapis.com",
     "iam.googleapis.com",
     "firestore.googleapis.com",
+    "secretmanager.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
     "cloudresourcemanager.googleapis.com",

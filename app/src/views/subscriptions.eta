@@ -1,0 +1,48 @@
+<% layout("./layout") %>
+<h1>Vault</h1>
+<p class="who">
+  What the family pays for, which email or phone number it's registered to, and who can get in.
+  Pick one to collect its password or a sign-in code without having to ask anyone.
+</p>
+
+<% if (it.isAdmin) { %>
+<a class="new-btn" href="/subscriptions/new">Add a subscription</a>
+<% } %>
+
+<% if (it.subscriptions.length === 0) { %>
+<p class="empty-state">
+  <% if (it.seesAll) { %>
+  Nothing in the vault yet. Add the first subscription above.
+  <% } else { %>
+  You don't have access to any subscriptions yet. Ask a family admin to add you to one.
+  <% } %>
+</p>
+<% } %>
+
+<% it.subscriptions.forEach(function (subscription) { %>
+<a class="card sub-card" href="/subscriptions/<%= subscription.id %>">
+  <div class="bar"></div>
+  <div class="sub-row">
+    <div class="sub-main">
+      <span class="sub-name"><%= subscription.name %></span>
+      <div class="meta-line when">
+        <% if (subscription.accountEmail) { %><span><%= subscription.accountEmail %></span><% } %>
+        <% if (subscription.accountPhone) { %><span><%= subscription.accountPhone %></span><% } %>
+        <% if (!subscription.accountEmail && !subscription.accountPhone) { %>
+        <span>No email or phone recorded</span>
+        <% } %>
+      </div>
+    </div>
+    <% if (subscription.members.length > 0) { %>
+    <span class="stack" aria-label="Who has access">
+      <% subscription.members.forEach(function (member) { %>
+      <span class="av av-xs" style="background: <%= member.color %>; color: <%= member.ink %>" title="<%= member.label %>"><%= member.initial %></span>
+      <% }) %>
+    </span>
+    <% } else { %>
+    <span class="when">Nobody yet</span>
+    <% } %>
+    <span class="card-chev" aria-hidden="true"></span>
+  </div>
+</a>
+<% }) %>

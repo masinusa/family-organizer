@@ -12,6 +12,7 @@ import { familyRouter } from "./routes/family.js";
 import { feedbackRouter } from "./routes/feedback.js";
 import { healthRouter } from "./routes/health.js";
 import { impersonateRouter } from "./routes/impersonate.js";
+import { subscriptionsRouter } from "./routes/subscriptions.js";
 
 export function createApp() {
   const app = express();
@@ -44,6 +45,7 @@ export function createApp() {
   // Replaces the old adminRouter: /family is both the tree and the place
   // family members and their accounts are managed.
   app.use(familyRouter);
+  app.use(subscriptionsRouter);
   app.use(feedbackRouter);
 
   app.use(errorHandler);

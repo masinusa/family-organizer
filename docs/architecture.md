@@ -12,8 +12,10 @@ Artifact Registry (Docker)
 Cloud Run service "family-hub"  <---- IAP <---- family member's browser
    (ingress: all, iap_enabled)          (Google OAuth; per-user access
         |  runtime SA                    the app itself grants/revokes)
-        v
-Firestore (events, users)
+        |
+        +--> Firestore (events, users, people, feedback, subscriptions)
+        +--> Secret Manager (subscription passwords; mailbox app password)
+        +--> Gmail IMAP, read-only (recent mail in the shared family mailbox)
 ```
 
 Family members hit `spicers.family`, mapped to the Cloud Run URL via Cloud
@@ -71,9 +73,12 @@ collections/subcollections rather than relational tables:
 | responseStatus | enum: needs_action / accepted / declined / tentative    |
 | isOrganizer    | boolean                                                 |
 
-Attendees are a subcollection rather than an array field on the event so
-that an RSVP is a single targeted document write, not a read-modify-write of
-the whole attendee list.
+**Correction:** the two tables above describe the original design, not the
+code. Attendees are *not* a subcollection — they are a denormalised
+`attendees` array of `{email, name, status}` maps on the event document
+itself, because the only query needed is "render this event" and a family
+event has single-digit attendees. See the Decisions entries in
+`docs/knowledge-base.md` for the current shape.
 
 **`users/{email}`** (top-level collection, doc ID is the lowercased email)
 
@@ -103,3 +108,63 @@ Feedback is submitted only through the authenticated app, stored privately
 in Firestore, and reviewed by admins in the app. It is never automatically
 sent to GitHub or email, so private family details do not escape the
 application's existing access boundary.
+
+**`subscriptions/{subscriptionId}`** (top-level collection)
+
+| field        | notes                                                        |
+| ------------ | ------------------------------------------------------------ |
+| name         | Required, e.g. "Netflix"                                      |
+| accountEmail | nullable, normalized; the address the *service* is registered to |
+| accountPhone | nullable, free text                                           |
+| link         | nullable sign-in URL, validated to http(s) before rendering   |
+| notes        | nullable free text                                            |
+| mailFrom     | nullable sender (address or domain) the family mailbox is searched for; validated to an address-or-domain shape, since it reaches an IMAP command |
+| hasPassword  | boolean — whether a Secret Manager version exists             |
+| memberEmails | array of normalized emails; who may see it and reveal secrets |
+| createdBy    | Email from the verified IAP identity                          |
+| createdAt    | Server-generated Firestore timestamp                          |
+| updatedAt    | Server-generated Firestore timestamp                          |
+
+**`subscriptions/{subscriptionId}/reveals/{revealId}`** (subcollection)
+
+| field   | notes                                                            |
+| ------- | ---------------------------------------------------------------- |
+| email   | Email from the verified IAP identity, never a form field          |
+| action  | enum: password / mail                                             |
+| version | nullable Secret Manager version id — which stored password was taken; null means the current one |
+| at      | Server-generated Firestore timestamp                              |
+
+**`subscriptions/{subscriptionId}/passwords/{version}`** (subcollection)
+
+| field   | notes                                                             |
+| ------- | ----------------------------------------------------------------- |
+| version | Secret Manager version id the value landed as; also the doc id     |
+| setBy   | Email from the verified IAP identity, never a form field           |
+| at      | Server-generated Firestore timestamp                               |
+
+The password history: one document per save, holding **no password** — just
+who saved it and when, keyed by the Secret Manager version that carries the
+value. Secret Manager keeps every version and its create time but has no
+idea who asked for the change, so this is the half it can't answer; it is
+also the index the history list is built from, which is why the app never
+needs `secretmanager.versions.list`. Anyone on the access list can save a
+new password and read back any version in the history, since nothing is
+overwritten — see ADR 0007.
+
+Subcollections here, unlike attendees above, because the only queries are
+genuinely ordered and limited ones: the most recent reveals, and the saves,
+for one subscription.
+
+**No password is ever stored in Firestore.** The value lives in Secret
+Manager under `sub-{subscriptionId}` — a name derived from the document id,
+not a second stored field — and `hasPassword` is the only trace of it in the
+database. Saving a new one adds a version rather than replacing anything, so
+an old password stays collectable for the device still signed in with it.
+The shared family mailbox's IMAP app password is a separate secret
+(`family-mailbox-app-password`), whose container Terraform creates but whose
+value is added by hand and never appears in Terraform state or this repo.
+
+A subscription lists only for family members on its `memberEmails`; admins
+see all of them. Filtering happens in the app
+(`app/src/lib/subscription-access.ts`), not in the Firestore query — see ADR
+0007 and the knowledge base for why.

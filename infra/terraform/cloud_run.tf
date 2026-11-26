@@ -26,6 +26,21 @@ resource "google_cloud_run_v2_service" "app" {
         name  = "GCP_SERVICE_NAME"
         value = var.service_name
       }
+
+      # Addresses Secret Manager's REST paths in app/src/lib/secret-store.ts,
+      # where subscription passwords are stored.
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+
+      # The shared mailbox the app logs into over IMAP, and the account email
+      # a subscription must match before it offers to search it — see
+      # app/src/lib/mailbox.ts.
+      env {
+        name  = "FAMILY_MAILBOX_ADDRESS"
+        value = var.family_mailbox_address
+      }
     }
   }
 

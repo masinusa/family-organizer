@@ -35,3 +35,19 @@
   IAP's `accessDeniedPageSettings`; needs a manual `gcloud iap settings
   set` step and end-to-end verification against the deployed site with a
   non-member Google account (see `docs/adr/0002-gcp-cloud-run-iap.md`).
+- [x] **Subscriptions vault** — `/subscriptions` lists the services the
+  family pays for, each with the email/phone it's registered to and who
+  has access; a subscription shows only to family members on its access
+  list (admins see all). Its page reveals the password on demand from
+  Secret Manager, and — for one registered to the shared family mailbox
+  with a sender set — the last 7 days of *that service's* mail over
+  read-only IMAP, each message opening in full with its links clickable,
+  so a sign-in code, a password reset or the last bill can be collected
+  without asking anyone. Anyone on the list can also save a new
+  password: each save adds a Secret Manager version instead of replacing
+  one, so the page shows the full history of who changed it and when,
+  and an old password can still be collected for the device that never
+  took the new one. Every reveal is recorded and shown. See ADR 0007.
+  The mailbox app password is a one-time `gcloud secrets versions add`
+  by hand, already done for this project — Terraform creates the secret
+  but deliberately never holds its value.

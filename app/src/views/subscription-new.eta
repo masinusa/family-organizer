@@ -1,0 +1,39 @@
+<% layout("./layout") %>
+<p><a class="back" href="/subscriptions">&larr; Back to the vault</a></p>
+<h1>Add a subscription</h1>
+<% if (it.error) { %>
+<p class="error" role="alert"><%= it.error %></p>
+<% } %>
+<p class="who">
+  Just a name is enough to start. Who has access and the password are set on its page afterwards.
+</p>
+<form method="post" action="/subscriptions">
+  <label>
+    Name
+    <input type="text" name="name" required maxlength="60" placeholder="Netflix" />
+  </label>
+  <label>
+    Account email (optional)
+    <input type="text" name="accountEmail" placeholder="name@example.com" />
+  </label>
+  <label>
+    Account phone (optional)
+    <input type="text" name="accountPhone" maxlength="40" />
+  </label>
+  <label>
+    Sign-in page (optional)
+    <input type="text" name="link" placeholder="netflix.com/login" />
+  </label>
+  <label>
+    Mail from (optional)
+    <input type="text" name="mailFrom" maxlength="100" placeholder="netflix.com" />
+  </label>
+  <p class="hint">
+    Only for a service registered to the family mailbox: the sender its mail is searched for.
+  </p>
+  <label>
+    Notes (optional)
+    <textarea name="notes" rows="3" maxlength="500"></textarea>
+  </label>
+  <button type="submit">Add</button>
+</form>
