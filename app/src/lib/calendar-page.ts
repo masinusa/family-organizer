@@ -90,8 +90,8 @@ export async function renderCalendarPage(
   const chips = categories.map(toChip);
   const personas = req.personas!;
   // The quick-add modal renders the same roster as the full event form
-  // (views/_event-fields.eta): everyone who can sign in.
-  const members = personas.active();
+  // (views/_event-fields.eta): everyone who can use the calendar.
+  const members = personas.audience("calendar");
 
   return render("calendar", {
     months: months.map((calendarMonth) => ({

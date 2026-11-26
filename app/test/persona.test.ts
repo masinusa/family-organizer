@@ -8,6 +8,7 @@ import {
   isValidBirthYear,
   guestPersona,
   MIN_BIRTH_YEAR,
+  CIRCLE_MISMATCH_ERROR,
   ORPHAN_ACCOUNT_ERROR,
   PERSONA_COLORS,
   PersonaDirectory,
@@ -101,6 +102,7 @@ function makePerson(overrides: Partial<PersonDoc> = {}): PersonDoc {
   return {
     id: "person",
     name: "Person",
+    circle: "family",
     email: null,
     blurb: null,
     birthMonth: null,
@@ -119,6 +121,7 @@ function makeUser(overrides: Partial<UserDoc> = {}): UserDoc {
   return {
     email: "someone@example.com",
     role: "member",
+    optIns: [],
     createdAt: new Date(2026, 9, 1),
     updatedAt: new Date(2026, 9, 1),
     ...overrides,
@@ -191,4 +194,67 @@ test("attendees resolve to members or guests", () => {
   assert.equal(guest.initials, "AJ");
   assert.ok(PERSONA_COLORS.includes(guest.color), "guests share the persona palette");
   assert.equal(guestPersona("Aunt Jo").color.key, guest.color.key, "and keep their colour");
+});
+
+/* ----------------------------- friends ----------------------------- */
+
+function friendsAndFamily() {
+  return new PersonaDirectory(
+    [
+      makePerson({ id: "p1", name: "Ada", email: "ada@example.com" }),
+      makePerson({ id: "f1", name: "Rae", email: "rae@example.com", circle: "friend" }),
+      makePerson({ id: "f2", name: "Kit", email: "kit@example.com", circle: "friend" }),
+      makePerson({ id: "f3", name: "Lou", email: null, circle: "friend" }),
+    ],
+    [
+      makeUser({ email: "ada@example.com" }),
+      makeUser({ email: "rae@example.com", role: "friend", optIns: ["calendar"] }),
+      makeUser({ email: "kit@example.com", role: "friend" }),
+    ],
+  );
+}
+
+test("friends are kept out of the tree and the family rosters", () => {
+  const directory = friendsAndFamily();
+  assert.deepEqual(directory.all().map((p) => p.name), ["Ada"]);
+  assert.deepEqual(directory.active().map((p) => p.name), ["Ada"]);
+  assert.deepEqual(directory.family.map((p) => p.id), ["p1"]);
+  assert.deepEqual(directory.friends().map((p) => p.name), ["Kit", "Lou", "Rae"]);
+});
+
+test("friends still resolve by id and email, so they can be drawn anywhere", () => {
+  const directory = friendsAndFamily();
+  assert.equal(directory.byId("f1")!.circle, "friend");
+  assert.equal(directory.forEmail("rae@example.com").personId, "f1");
+  assert.equal(directory.byId("f3")!.subtitle, "Friend · not signed in");
+});
+
+test("a feature's audience is family accounts plus the friends opted into it", () => {
+  const directory = friendsAndFamily();
+  assert.deepEqual(directory.audience("calendar").map((p) => p.name), ["Ada", "Rae"]);
+  assert.deepEqual(directory.audience("vault").map((p) => p.name), ["Ada"]);
+  assert.deepEqual(directory.withAccounts().map((p) => p.name), ["Ada", "Kit", "Rae"]);
+  assert.deepEqual(directory.optInsOf(directory.byId("f1")!), ["calendar"]);
+});
+
+test("a friend account on somebody on the tree is refused", () => {
+  assert.throws(
+    () =>
+      new PersonaDirectory(
+        [makePerson({ id: "p1", email: "ada@example.com" })],
+        [makeUser({ email: "ada@example.com", role: "friend" })],
+      ),
+    (err: Error) => err.message === `ada@example.com ${CIRCLE_MISMATCH_ERROR}`,
+  );
+});
+
+test("a family account on a friend is refused", () => {
+  assert.throws(
+    () =>
+      new PersonaDirectory(
+        [makePerson({ id: "f1", email: "rae@example.com", circle: "friend" })],
+        [makeUser({ email: "rae@example.com", role: "admin" })],
+      ),
+    (err: Error) => err.message === `rae@example.com ${CIRCLE_MISMATCH_ERROR}`,
+  );
 });

@@ -7,6 +7,7 @@ function makeUser(overrides: Partial<UserDoc> = {}): UserDoc {
   return {
     email: "someone@example.com",
     role: "member",
+    optIns: [],
     createdAt: new Date(2026, 8, 1),
     updatedAt: new Date(2026, 8, 1),
     ...overrides,

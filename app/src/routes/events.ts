@@ -20,16 +20,16 @@ import type { RsvpStatus } from "../lib/types.js";
 
 export const eventsRouter = Router();
 
-/** The roster's field keys: everyone who can sign in. */
+/** The roster's field keys: everyone who can use the calendar. */
 function activeEmails(req: Request): string[] {
-  return req.personas!.active().map((persona) => persona.email!);
+  return req.personas!.audience("calendar").map((persona) => persona.email!);
 }
 
 async function renderForm(req: Request, values: FormValues, error: string | null): Promise<string> {
   const categories = await listCategories();
   const returnTo = safeCalendarReturn(req.query.return ?? req.body?.return);
   return render("event-form", {
-    ...eventFieldsData(values, req.personas!.active(), categories.map(toChip)),
+    ...eventFieldsData(values, req.personas!.audience("calendar"), categories.map(toChip)),
     error,
     returnTo,
     ...chrome(req, "calendar"),

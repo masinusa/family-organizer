@@ -118,8 +118,8 @@ async function renderDetail(
       mailFrom: subscription.mailFrom ?? "",
     },
     members: subscription.memberEmails.map((email) => personas.forEmail(email)),
-    // The admin access picker: everyone who can sign in, ticked if they're on.
-    roster: personas.active(),
+    // The admin access picker: everyone who can use the vault, ticked if they're on.
+    roster: personas.audience("vault"),
     reveals: reveals.map((reveal) => ({
       ...reveal,
       persona: personas.forEmail(reveal.email),
@@ -247,7 +247,7 @@ subscriptionsRouter.post("/subscriptions/:id/access", requireAdmin, async (req, 
     if (!(await loadForWrite(req, res))) return;
     const emails = parseMemberEmails(
       req.body,
-      req.personas!.active().map((persona) => persona.email!),
+      req.personas!.audience("vault").map((persona) => persona.email!),
     );
     await subscriptionsRepo.setMemberEmails(req.params.id, emails);
     res.redirect(`/subscriptions/${req.params.id}`);

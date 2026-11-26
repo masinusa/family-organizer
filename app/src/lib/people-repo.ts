@@ -1,7 +1,7 @@
 import { FieldValue, Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
 import { normalizeEmail } from "./email.js";
-import type { PersonDoc, PersonaInput } from "./types.js";
+import type { PersonCircle, PersonDoc, PersonaInput } from "./types.js";
 
 const peopleCollection = () => firestore.collection("people");
 
@@ -19,10 +19,19 @@ function requireConnectionIds(id: string, data: DocumentData): string[] {
   return data.connectionIds as string[];
 }
 
+/** Same rule as connectionIds: a person without one predates the field. */
+function requireCircle(id: string, data: DocumentData): PersonCircle {
+  if (data.circle !== "family" && data.circle !== "friend") {
+    throw new Error(`Person ${id} has no circle — run "npm run migrate:circles".`);
+  }
+  return data.circle;
+}
+
 function toPersonDoc(id: string, data: DocumentData): PersonDoc {
   return {
     id,
     name: data.name,
+    circle: requireCircle(id, data),
     email: data.email ?? null,
     blurb: data.blurb ?? null,
     birthMonth: data.birthMonth ?? null,
@@ -46,10 +55,11 @@ export async function getPerson(id: string): Promise<PersonDoc | null> {
   return snap.exists ? toPersonDoc(snap.id, snap.data()!) : null;
 }
 
-export async function createPerson(name: string, email: string | null): Promise<PersonDoc> {
+export async function createPerson(name: string, email: string | null, circle: PersonCircle): Promise<PersonDoc> {
   const now = Timestamp.now();
   const data = {
     name,
+    circle,
     email: email ? normalizeEmail(email) : null,
     blurb: null,
     birthMonth: null,

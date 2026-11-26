@@ -1,0 +1,64 @@
+<% layout("./layout") %>
+<p><a class="back" href="/family/accounts">&larr; Back to who can sign in</a></p>
+<h1>Friends</h1>
+<% if (it.error) { %>
+<p class="error" role="alert"><%= it.error %></p>
+<% } %>
+<% if (it.warning) { %>
+<p class="warning"><%= it.warning %></p>
+<% } %>
+<p class="who">
+  People who can sign in for something specific &mdash; a Secret Santa, say &mdash; without being on
+  the tree. A friend sees nothing but what's switched on for them here, and anything they take part in.
+</p>
+
+<% if (it.friends.length === 0) { %>
+<p class="empty-state">No friends yet. Add the first one below.</p>
+<% } %>
+
+<% it.friends.forEach(function (friend) { %>
+<details class="sheet">
+  <summary class="sheet-head">
+    <span class="sheet-name"><%~ include("./_persona-row", { persona: friend.persona }) %></span>
+    <span class="sheet-value"><%= friend.reach.length ? friend.reach.join(", ") : "Nothing switched on" %></span>
+    <span class="sheet-chev"></span>
+  </summary>
+  <div class="sheet-body">
+    <form method="post" action="/friends/<%= friend.persona.personId %>/access">
+      <div class="optin-list">
+        <% it.features.forEach(function (feature) { %>
+        <label class="switch">
+          <input type="checkbox" name="optIns" value="<%= feature.key %>" <%= friend.optIns.includes(feature.key) ? "checked" : "" %> />
+          <span class="switch-track"><span class="switch-knob"></span></span>
+          <span class="switch-text"><%= feature.label %></span>
+        </label>
+        <% }) %>
+      </div>
+      <button type="submit">Save</button>
+    </form>
+    <div class="actions">
+      <form
+        method="post"
+        action="/friends/<%= friend.persona.personId %>/delete"
+        onsubmit="return confirm('Remove this friend? They can no longer sign in.');"
+      >
+        <button type="submit">Remove friend</button>
+      </form>
+    </div>
+  </div>
+</details>
+<% }) %>
+
+<h2>Add a friend</h2>
+<form method="post" action="/friends">
+  <label>
+    Name
+    <input type="text" name="name" required />
+  </label>
+  <label>
+    Google email
+    <input type="text" name="email" required placeholder="name@example.com" />
+  </label>
+  <p class="hint">The address they'll sign in with. They can sign in as soon as you add them.</p>
+  <button type="submit">Add friend</button>
+</form>

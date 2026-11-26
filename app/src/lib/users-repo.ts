@@ -2,7 +2,8 @@ import { FieldPath, Timestamp, type DocumentData } from "@google-cloud/firestore
 import { firestore } from "./firestore.js";
 import { normalizeEmail } from "./email.js";
 import * as iapAccess from "./iap-access.js";
-import type { UserDoc, UserRole } from "./types.js";
+import { isFeatureKey } from "./features.js";
+import type { FeatureKey, UserDoc, UserRole } from "./types.js";
 
 const usersCollection = () => firestore.collection("users");
 
@@ -14,10 +15,19 @@ const usersCollection = () => firestore.collection("users");
 export const IAP_SYNC_WARNING =
   "Saved, but the Google access change didn't go through — sign-in may not work yet. Try again in a moment.";
 
+/** An account without the field predates friends; one with a stray key is a bug. */
+function requireOptIns(id: string, data: DocumentData): FeatureKey[] {
+  if (!Array.isArray(data.optIns) || !data.optIns.every(isFeatureKey)) {
+    throw new Error(`Account ${id} has no valid optIns — run "npm run migrate:circles".`);
+  }
+  return data.optIns;
+}
+
 function toUserDoc(id: string, data: DocumentData): UserDoc {
   return {
     email: id,
     role: data.role,
+    optIns: requireOptIns(id, data),
     createdAt: (data.createdAt as Timestamp).toDate(),
     updatedAt: (data.updatedAt as Timestamp).toDate(),
   };
@@ -55,6 +65,17 @@ export async function listUsers(): Promise<UserDoc[]> {
  * and must not roll back over a secondary IAM hiccup, but the caller
  * still has to be able to say so instead of claiming success.
  */
+/**
+ * A friend account belongs to a friend-circle person and a family one to
+ * somebody on the tree (lib/persona.ts refuses anything else), so no role
+ * change may carry an account across that line.
+ */
+export const CROSS_CIRCLE_ERROR = "An account can't move between family and friends.";
+
+function isFriendRole(role: UserRole): boolean {
+  return role === "friend";
+}
+
 export async function createUser(
   email: string,
   role: UserRole,
@@ -66,9 +87,13 @@ export async function createUser(
 
   let user: UserDoc;
   if (!existing.exists) {
-    await ref.set({ role, createdAt: now, updatedAt: now });
-    user = toUserDoc(id, { role, createdAt: now, updatedAt: now });
+    const data = { role, optIns: [], createdAt: now, updatedAt: now };
+    await ref.set(data);
+    user = toUserDoc(id, data);
   } else {
+    if (isFriendRole(existing.data()!.role) !== isFriendRole(role)) {
+      throw new Error(CROSS_CIRCLE_ERROR);
+    }
     await ref.update({ role, updatedAt: now });
     const data = existing.data()!;
     user = toUserDoc(id, { ...data, role, updatedAt: now });
@@ -103,10 +128,23 @@ async function assertNotLastAdmin(email: string): Promise<void> {
 
 export async function setRole(email: string, role: UserRole): Promise<void> {
   const id = normalizeEmail(email);
+  const existing = await getUser(id);
+  if (!existing) throw new Error(`No account for ${id}.`);
+  if (isFriendRole(existing.role) !== isFriendRole(role)) {
+    throw new Error(CROSS_CIRCLE_ERROR);
+  }
   if (role === "member") {
     await assertNotLastAdmin(id);
   }
   await usersCollection().doc(id).update({ role, updatedAt: Timestamp.now() });
+}
+
+/** Which features a friend may open — family accounts get them all already. */
+export async function setOptIns(email: string, optIns: FeatureKey[]): Promise<void> {
+  const id = normalizeEmail(email);
+  const existing = await getUser(id);
+  if (existing?.role !== "friend") throw new Error(`${id} is not a friend account.`);
+  await usersCollection().doc(id).update({ optIns, updatedAt: Timestamp.now() });
 }
 
 /**
@@ -137,4 +175,4 @@ export async function deleteUser(email: string): Promise<{ iapFailed: boolean }>
  * iap-auth.ts exports oAuth2Client as an object rather than bare
  * functions).
  */
-export const usersRepo = { getUser, listUsers, createUser, setRole, deleteUser };
+export const usersRepo = { getUser, listUsers, createUser, setRole, setOptIns, deleteUser };

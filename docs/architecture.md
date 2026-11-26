@@ -84,9 +84,16 @@ event has single-digit attendees. See the Decisions entries in
 
 | field     | notes                                    |
 | --------- | ------------------------------------------ |
-| role      | enum: admin / member                      |
+| role      | enum: admin / member / friend             |
+| optIns    | feature keys a friend may open; `[]` for family |
 | createdAt |                                            |
 | updatedAt |                                            |
+
+A `friend` account belongs to a `people` doc with `circle: "friend"`:
+someone who signs in for a specific feature without being on the tree.
+Which pages a friend can open is decided by `app/src/lib/features.ts` and
+the gate in `app/src/middleware/feature-access.ts`, which fails closed
+(ADR 0008).
 
 This is the entire identity/authorization system alongside IAP: a doc's
 presence is what grants app access, and its existence also drives the

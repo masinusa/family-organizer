@@ -51,3 +51,11 @@
   The mailbox app password is a one-time `gcloud secrets versions add`
   by hand, already done for this project — Terraform creates the secret
   but deliberately never holds its value.
+- [x] **Friends** — people who sign in for specific features without being
+  on the tree or seeing the rest of the site. Admins add them at
+  `/friends` and switch features on per friend. Every page is behind one
+  gate that fails closed (ADR 0008).
+- [ ] **Christmas page** — `/christmas`, starting with Secret Santa:
+  admin-run draw with editable assignments, wish lists, budget and date,
+  and anonymous questions between a Santa and their recipient. Friends
+  reach it by taking part.

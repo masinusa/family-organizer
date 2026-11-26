@@ -20,7 +20,7 @@ let created = 0;
 for (const user of users) {
   if (claimed.has(normalizeEmail(user.email))) continue;
   const name = user.email.split("@")[0]!;
-  const person = await peopleRepo.createPerson(name, user.email);
+  const person = await peopleRepo.createPerson(name, user.email, "family");
   created += 1;
   console.log(`${user.email}: created "${name}" (/family/${person.id}) — rename them there.`);
 }

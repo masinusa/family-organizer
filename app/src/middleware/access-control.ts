@@ -16,7 +16,7 @@ declare module "express-serve-static-core" {
  * and without the banner's "Back to me" the only way out would be
  * clearing cookies by hand.
  */
-function forbidden(req: Request, res: Response, message: string): void {
+export function forbidden(req: Request, res: Response, message: string): void {
   const { impersonator, path } = impersonationState(req);
   res.status(403).send(render("forbidden", {
     message,

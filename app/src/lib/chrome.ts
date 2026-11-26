@@ -19,6 +19,9 @@ export function chrome(req: Request, active: string | null): Record<string, unkn
     viewer: req.persona!,
     impersonatorPersona: impersonator ? req.personas!.forEmail(impersonator) : null,
     isAdmin: isAdmin(req),
+    /** The top nav: only what this viewer may open (lib/features.ts). */
+    nav: req.features!.filter((feature) => feature.nav),
+    canFeedback: req.features!.some((feature) => feature.key === "feedback"),
     active,
     impersonator,
     /**

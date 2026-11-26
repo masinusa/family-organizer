@@ -13,7 +13,7 @@ import { usersRepo } from "../src/lib/users-repo.js";
 import type { UserDoc, UserRole } from "../src/lib/types.js";
 
 function makeUser(email: string, role: UserRole): UserDoc {
-  return { email, role, createdAt: new Date(2026, 8, 1), updatedAt: new Date(2026, 8, 1) };
+  return { email, role, optIns: [], createdAt: new Date(2026, 8, 1), updatedAt: new Date(2026, 8, 1) };
 }
 
 /** `cookie` is the raw header, so a malformed one can be exercised too. */

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { errorHandler } from "./middleware/error-handler.js";
 import { iapAuth } from "./middleware/iap-auth.js";
 import { requireFamilyMember } from "./middleware/access-control.js";
+import { requireFeatureAccess } from "./middleware/feature-access.js";
 import { applyImpersonation } from "./middleware/impersonation.js";
 import { loadPersonas } from "./middleware/personas.js";
 import { accessDeniedRouter } from "./routes/access-denied.js";
@@ -10,6 +11,7 @@ import { categoriesRouter } from "./routes/categories.js";
 import { eventsRouter } from "./routes/events.js";
 import { familyRouter } from "./routes/family.js";
 import { feedbackRouter } from "./routes/feedback.js";
+import { friendsRouter } from "./routes/friends.js";
 import { healthRouter } from "./routes/health.js";
 import { impersonateRouter } from "./routes/impersonate.js";
 import { subscriptionsRouter } from "./routes/subscriptions.js";
@@ -39,13 +41,19 @@ export function createApp() {
   // Everyone on the tree, joined to their accounts once for the whole
   // request — routes and the top bar draw people from this.
   app.use(loadPersonas);
+  // Ahead of the feature gate: the favicon belongs to no feature, and a
+  // path no feature claims is closed to friends.
   app.use(express.static(publicDir));
+  // Which parts of the site this viewer may open. Fails closed: a router
+  // mounted below without an entry in lib/features.ts is family only.
+  app.use(requireFeatureAccess);
   app.use(eventsRouter);
   app.use(categoriesRouter);
   // Replaces the old adminRouter: /family is both the tree and the place
   // family members and their accounts are managed.
   app.use(familyRouter);
   app.use(subscriptionsRouter);
+  app.use(friendsRouter);
   app.use(feedbackRouter);
 
   app.use(errorHandler);

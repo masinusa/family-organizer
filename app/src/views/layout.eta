@@ -726,6 +726,8 @@
       .switch:has(input:checked) .switch-knob { transform: translateX(1.05rem); }
       .switch:has(input:focus-visible) .switch-track { outline: 2px solid var(--primary); outline-offset: 2px; }
       .switch-text { font-size: 0.85rem; font-weight: 700; }
+      /* A friend's opt-ins (views/friends.eta): one switch per line. */
+      .optin-list { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.25rem; }
 
       .when { margin: 0.85rem 0 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
       .when-row { display: flex; align-items: center; gap: 0.6rem; }
@@ -1258,11 +1260,11 @@
     <% } %>
     <% if (it.email) { %>
     <nav class="topnav">
-      <a class="topnav-brand" href="/">Family Hub</a>
+      <a class="topnav-brand" href="<%= it.nav.length ? it.nav[0].href : "/" %>">Family Hub</a>
       <div class="topnav-links">
-        <a href="/" class="<%= it.active === "calendar" ? "active" : "" %>">Calendar</a>
-        <a href="/family" class="<%= it.active === "family" ? "active" : "" %>">Family</a>
-        <a href="/subscriptions" class="<%= it.active === "vault" ? "active" : "" %>">Vault</a>
+        <% it.nav.forEach(function (feature) { %>
+        <a href="<%= feature.href %>" class="<%= it.active === feature.key ? "active" : "" %>"><%= feature.label %></a>
+        <% }) %>
       </div>
       <div class="topnav-user"><%~ include("./_persona-chip", { persona: it.viewer, link: true }) %></div>
       <% if (it.canImpersonate) { %>
@@ -1283,7 +1285,7 @@
     </nav>
     <% } %>
     <div class="wrap"><%~ it.body %></div>
-    <% if (it.email) { %>
+    <% if (it.email && it.canFeedback) { %>
     <a class="feedback-fab" href="/feedback" aria-label="Send feedback">
       <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15a4 4 0 0 1-4 4H8l-4 3v-7a4 4 0 0 1-2-3.5v-5A4 4 0 0 1 6 3h10a4 4 0 0 1 4 4z" /></svg>
       <span>Feedback</span>

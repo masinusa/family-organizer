@@ -1,6 +1,7 @@
 <%
-  /* Inline face + name. `link` makes it go to their card when they have one. */
-  var href = it.link && it.persona.personId ? "/family/" + it.persona.personId : null;
+  /* Inline face + name. `link` makes it go to their card when they have
+     one — only family do; a friend has no place on the tree. */
+  var href = it.link && it.persona.circle === "family" ? "/family/" + it.persona.personId : null;
 %>
 <% if (href) { %><a class="pchip" href="<%= href %>"><% } else { %><span class="pchip"><% } %>
 <%~ include("./_persona-avatar", { persona: it.persona, size: it.size || "xs" }) %>

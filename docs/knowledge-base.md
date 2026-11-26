@@ -263,6 +263,13 @@ don't rewrite — newest entry last in each section.
   the code, never a signature block, which is how a heuristic passes nine
   tests and fails on message one. Reach for real inputs early when the thing
   under test is a guess about human text.
+- Eta escapes `'` to `&#39;`, and the browser decodes that back to `'`
+  **before** an inline handler's JavaScript runs. So
+  `onsubmit="return confirm('Delete <%= name %>?')"` is not made safe by
+  escaping: a name containing `');alert(1);('` runs. `views/friends.eta`
+  uses a fixed message for this reason. `views/subscription.eta` still
+  interpolates the (admin-set) subscription name this way. The same
+  escaping trips up tests: assert on `isn&#39;t`, not `isn't`.
 
 ## Decisions
 
@@ -560,6 +567,19 @@ don't rewrite — newest entry last in each section.
   so the rule against storing a hand-posted address is unchanged. The audit
   log keeps recording `realEmail(req)`. A persona only changes how that
   stored email is drawn.
+- Friends (ADR 0008) are `people` docs with `circle: "friend"` and an
+  account with role `friend`, not a separate collection, so they're still
+  one Persona. `PersonaDirectory.all()`/`active()` return **family only**.
+  That keeps the tree, the accounts list and every pre-existing roster
+  family-only without touching their call sites. Use `friends()`,
+  `withAccounts()` or `audience(featureKey)` when a friend should appear.
+  `/family/:id` 404s for a friend's id (`familyRouter.param`), so no
+  hand-posted form can give a friend parents or a family account.
+- Who can open which page is decided in one place: `lib/features.ts` plus
+  `middleware/feature-access.ts`. A path no feature claims is family only.
+  The gate fails closed, so a new page is invisible to friends until it's
+  registered there. Static files are served above the gate, because the
+  favicon belongs to no feature.
 
 ## Guidelines
 
@@ -698,4 +718,7 @@ don't rewrite — newest entry last in each section.
   for afterwards, though — "onerror=alert" is *present* in that page, inside
   `&lt;img src=x onerror=alert(1)&gt;`, and is inert. Assert on the escaped
   form or read the fragment; a naive substring check reports a false alarm.
-
+- Adding a page a friend should be able to reach means adding (or
+  extending) an entry in `FEATURES` in `app/src/lib/features.ts`. Without
+  one, the page is family only. That's deliberate; don't work around it
+  with a per-route exception.

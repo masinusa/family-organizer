@@ -11,6 +11,10 @@
   Everyone with access to this site. To let someone new sign in, open their card on the tree and
   grant access there &mdash; every account belongs to someone on the tree.
 </p>
+<p class="who">
+  Someone who isn't family? <a href="/friends">Add them as a friend</a> instead &mdash; they can sign in
+  for just the parts of the site you choose.
+</p>
 
 <% it.rows.forEach(function (persona) { %>
 <div class="card">

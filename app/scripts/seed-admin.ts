@@ -16,7 +16,7 @@ if (!email || !name) {
 
 const people = await peopleRepo.listPeople();
 const existing = people.find((p) => p.email && normalizeEmail(p.email) === normalizeEmail(email));
-const person = existing ?? (await peopleRepo.createPerson(name, email));
+const person = existing ?? (await peopleRepo.createPerson(name, email, "family"));
 
 const { user, iapFailed } = await createUser(email, "admin");
 console.log(`Admin ready: ${person.name} <${user.email}> (role=${user.role})`);

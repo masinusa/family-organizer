@@ -7,6 +7,7 @@ function makePerson(overrides: Partial<PersonDoc> = {}): PersonDoc {
   return {
     id: "person",
     name: "Person",
+    circle: "family",
     email: null,
     blurb: null,
     birthMonth: null,

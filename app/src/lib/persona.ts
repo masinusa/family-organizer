@@ -7,7 +7,7 @@
  * views/_persona-*.eta partials and nothing else.
  */
 import { normalizeEmail } from "./email.js";
-import type { Attendee, PersonDoc, UserDoc, UserRole } from "./types.js";
+import type { Attendee, FeatureKey, PersonCircle, PersonDoc, UserDoc, UserRole } from "./types.js";
 
 
 export interface PersonaColor {
@@ -95,6 +95,8 @@ export interface Persona {
   kind: PersonaKind;
   /** The `people` doc, for a person on the tree; null for a guest or unknown. */
   personId: string | null;
+  /** Family (on the tree) or friend (not); null for a guest or unknown. */
+  circle: PersonCircle | null;
   name: string;
   email: string | null;
   /** Non-null exactly when they can sign in — what "active" means. */
@@ -108,17 +110,30 @@ export interface Persona {
 export const ORPHAN_ACCOUNT_ERROR =
   'has an account but nobody on the tree — run "npm run migrate:personas".';
 
+/**
+ * A friend account on somebody on the tree, or a family account on a
+ * friend, would let a role decide what a circle should — the gate reads
+ * the role, the tree reads the circle, and they'd disagree about one person.
+ */
+export const CIRCLE_MISMATCH_ERROR = "has an account whose role doesn't match their circle.";
+
+function accountSubtitle(person: PersonDoc, account: UserDoc | null): string {
+  if (!account) return person.circle === "friend" ? "Friend · not signed in" : "Not signed in";
+  return `${account.email} · ${account.role}`;
+}
+
 function personPersona(person: PersonDoc, account: UserDoc | null): Persona {
   return {
     key: person.id,
     kind: "person",
     personId: person.id,
+    circle: person.circle,
     name: person.name,
     email: person.email ? normalizeEmail(person.email) : null,
     role: account?.role ?? null,
     initials: initialsFor(person.name),
     color: colorFor(person),
-    subtitle: account ? `${account.email} · ${account.role}` : "Not signed in",
+    subtitle: accountSubtitle(person, account),
   };
 }
 
@@ -128,6 +143,7 @@ export function guestPersona(name: string): Persona {
     key: `guest:${name.toLowerCase()}`,
     kind: "guest",
     personId: null,
+    circle: null,
     name,
     email: null,
     role: null,
@@ -143,6 +159,7 @@ function unknownPersona(email: string): Persona {
     key: `email:${key}`,
     kind: "unknown",
     personId: null,
+    circle: null,
     name: key,
     email: key,
     role: null,
@@ -167,22 +184,33 @@ export class PersonaDirectory {
   private readonly everyone: Persona[];
   private readonly ids = new Map<string, Persona>();
   private readonly emails = new Map<string, Persona>();
+  private readonly accounts = new Map<string, UserDoc>();
 
   /**
    * The docs it was built from, for what needs more than a Persona — the
    * tree layout, birthdays, relationship rules. Drawing anyone goes
-   * through a Persona, never through these.
+   * through a Persona, never through these. `people` is everyone, friends
+   * included; `family` is only those on the tree.
    */
   readonly people: PersonDoc[];
+  readonly family: PersonDoc[];
 
   constructor(people: PersonDoc[], users: UserDoc[]) {
     this.people = people;
+    this.family = people.filter((person) => person.circle === "family");
     const accountByEmail = new Map(users.map((u) => [normalizeEmail(u.email), u]));
-    this.everyone = people
-      .map((person) =>
-        personPersona(person, person.email ? (accountByEmail.get(normalizeEmail(person.email)) ?? null) : null),
-      )
-      .sort(byName);
+    const accountOf = (person: PersonDoc) =>
+      person.email ? (accountByEmail.get(normalizeEmail(person.email)) ?? null) : null;
+
+    for (const person of people) {
+      const account = accountOf(person);
+      if (account && (account.role === "friend") !== (person.circle === "friend")) {
+        throw new Error(`${account.email} ${CIRCLE_MISMATCH_ERROR}`);
+      }
+      if (account) this.accounts.set(person.id, account);
+    }
+
+    this.everyone = people.map((person) => personPersona(person, accountOf(person))).sort(byName);
 
     for (const persona of this.everyone) {
       this.ids.set(persona.personId!, persona);
@@ -195,14 +223,38 @@ export class PersonaDirectory {
     }
   }
 
-  /** Everyone on the tree, by name. */
+  /** Everyone on the tree, by name. Friends are never in it. */
   all(): Persona[] {
-    return this.everyone;
+    return this.everyone.filter((p) => p.circle === "family");
   }
 
-  /** Everyone who can sign in, by name. */
+  /** Every family member who can sign in, by name. */
   active(): Persona[] {
+    return this.all().filter((p) => p.role !== null);
+  }
+
+  /** Everyone kept off the tree on purpose, by name. */
+  friends(): Persona[] {
+    return this.everyone.filter((p) => p.circle === "friend");
+  }
+
+  /** Family and friends alike — everyone who can sign in, by name. */
+  withAccounts(): Persona[] {
     return this.everyone.filter((p) => p.role !== null);
+  }
+
+  /** The friend's account opt-ins; family accounts have none and need none. */
+  optInsOf(persona: Persona): FeatureKey[] {
+    return persona.personId ? (this.accounts.get(persona.personId)?.optIns ?? []) : [];
+  }
+
+  /**
+   * Who a feature's people-pickers may offer: every family account, plus
+   * the friends an admin opted into it. Participation-based access isn't
+   * here — that's per-feature and needs its own read.
+   */
+  audience(key: FeatureKey): Persona[] {
+    return this.withAccounts().filter((p) => p.circle === "family" || this.optInsOf(p).includes(key));
   }
 
   byId(id: string): Persona | null {

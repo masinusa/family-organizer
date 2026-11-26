@@ -53,18 +53,39 @@ export interface CategoryDoc {
   builtIn: boolean;
 }
 
-export type UserRole = "admin" | "member";
+/**
+ * `friend` is the one role that is not family: someone who can sign in for
+ * a feature or two (a Secret Santa) without being on the tree or seeing the
+ * rest of the site. Always paired with a `friend`-circle person — see
+ * PersonaDirectory in lib/persona.ts, which refuses anything else.
+ */
+export type UserRole = "admin" | "member" | "friend";
+
+/** Every area of the site that has its own audience — see lib/features.ts. */
+export type FeatureKey = "calendar" | "family" | "vault" | "feedback";
 
 export interface UserDoc {
   email: string;
   role: UserRole;
+  /**
+   * Features a friend has been let into by an admin. Always present; empty
+   * for family accounts, who get every family feature by default.
+   */
+  optIns: FeatureKey[];
   createdAt: Date;
   updatedAt: Date;
 }
 
+/**
+ * Family are on the tree; friends are people with a persona (a face, a name,
+ * maybe an account) who are deliberately kept off it.
+ */
+export type PersonCircle = "family" | "friend";
+
 export interface PersonDoc {
   id: string;
   name: string;
+  circle: PersonCircle;
   /** Also the join key to a `users` account — see lib/family-link.ts. */
   email: string | null;
   blurb: string | null;

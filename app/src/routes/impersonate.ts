@@ -56,7 +56,9 @@ impersonateRouter.get("/impersonate/picker", requireRealAdmin, async (req, res, 
   try {
     const me = realEmail(req);
     const personas = await loadPersonaDirectory();
-    const options = personas.active().filter((persona) => persona.email !== me);
+    // Friends too: checking what a friend can and can't reach is the most
+    // likely reason to view as somebody.
+    const options = personas.withAccounts().filter((persona) => persona.email !== me);
 
     res.send(
       render("_view-as", {

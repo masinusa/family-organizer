@@ -14,7 +14,7 @@ import {
   MISSING_PERSON_ERROR,
 } from "../lib/people-repo.js";
 import * as usersRepo from "../lib/users-repo.js";
-import { IAP_SYNC_WARNING, LAST_ADMIN_ERROR } from "../lib/users-repo.js";
+import { CROSS_CIRCLE_ERROR, IAP_SYNC_WARNING, LAST_ADMIN_ERROR } from "../lib/users-repo.js";
 import { canEditPersona, findDuplicateEmailOwner } from "../lib/family-link.js";
 import {
   formatBirthday,
@@ -116,7 +116,7 @@ function accountOf(persona: Persona): { email: string; role: UserRole } | null {
 
 async function renderTree(req: Request) {
   const directory = personas(req);
-  const layout = buildTreeLayout(directory.people);
+  const layout = buildTreeLayout(directory.family);
 
   // The template stays dumb — everything it needs is resolved here, the
   // same way calendar.eta just walks a pre-built grid.
@@ -138,7 +138,7 @@ async function renderTree(req: Request) {
 /** Null when the person doesn't exist, so callers can 404. */
 async function renderPerson(req: Request, id: string, notice: { error?: string; warning?: string } = {}) {
   const directory = personas(req);
-  const person = directory.people.find((p) => p.id === id);
+  const person = directory.family.find((p) => p.id === id);
   if (!person) return null;
   const persona = directory.byId(id)!;
   const resolve = (ids: string[]) => ids.map((pid) => directory.byId(pid)).filter((p): p is Persona => !!p);
@@ -148,7 +148,7 @@ async function renderPerson(req: Request, id: string, notice: { error?: string; 
   // a descendant can't be a parent (that's the cycle), and an existing
   // link isn't worth offering twice.
   const others = directory.all().filter((p) => p.personId !== id);
-  const descendants = findDescendantIds(id, directory.people);
+  const descendants = findDescendantIds(id, directory.family);
 
   return render("person", {
     ...chrome(req, "family"),
@@ -156,7 +156,7 @@ async function renderPerson(req: Request, id: string, notice: { error?: string; 
     persona,
     parents: resolve(person.parentIds),
     connections: resolve(person.connectionIds),
-    children: resolve(directory.people.filter((p) => p.parentIds.includes(id)).map((p) => p.id)),
+    children: resolve(directory.family.filter((p) => p.parentIds.includes(id)).map((p) => p.id)),
     parentOptions: others.filter((p) => !person.parentIds.includes(p.personId!) && !descendants.has(p.personId!)),
     connectionOptions: others.filter((p) => !person.connectionIds.includes(p.personId!)),
     /** At two parents already, so the parent half of the form is closed off. */
@@ -222,7 +222,7 @@ familyRouter.post("/family/people", requireAdmin, async (req, res, next) => {
       );
       return;
     }
-    const person = await peopleRepo.createPerson(name, email || null);
+    const person = await peopleRepo.createPerson(name, email || null, "family");
     res.redirect(`/family/${person.id}`);
   } catch (err) {
     next(err);
@@ -244,7 +244,7 @@ familyRouter.post("/family/accounts/:email/role", requireAdmin, async (req, res,
     await usersRepo.setRole(req.params.email, role as UserRole);
     res.redirect("/family/accounts");
   } catch (err) {
-    if (err instanceof Error && err.message === LAST_ADMIN_ERROR) {
+    if (err instanceof Error && (err.message === LAST_ADMIN_ERROR || err.message === CROSS_CIRCLE_ERROR)) {
       res.status(400).send(await renderAccounts(req, { error: err.message }));
       return;
     }
@@ -271,6 +271,23 @@ familyRouter.post("/family/accounts/:email/delete", requireAdmin, async (req, re
 });
 
 /* ----------------------------- person ----------------------------- */
+
+/**
+ * Every /family/:id route is about somebody on the tree. A friend's id is
+ * a 404 here — they're managed from /friends — so no hand-posted form can
+ * give a friend parents, a family account, or a place on the tree.
+ */
+familyRouter.param("id", (req, res, next, id: string) => {
+  if (personas(req).byId(id)?.circle !== "family") {
+    res.status(404).send("Person not found");
+    return;
+  }
+  next();
+});
+
+function allOnTree(req: Request, ids: string[]): boolean {
+  return ids.every((id) => personas(req).byId(id)?.circle === "family");
+}
 
 familyRouter.get("/family/:id", async (req, res, next) => {
   try {
@@ -397,6 +414,10 @@ familyRouter.post("/family/:id/relationships", requireAdmin, async (req, res, ne
     const ids = parsePersonIds(kind === "parent" ? req.body.parentIds : req.body.connectionId);
     if (ids.length === 0) {
       res.status(400).send(await renderPerson(req, req.params.id, { error: "Choose at least one person." }));
+      return;
+    }
+    if (!allOnTree(req, ids)) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: MISSING_PERSON_ERROR }));
       return;
     }
 
