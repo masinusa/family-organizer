@@ -62,7 +62,7 @@ export interface CategoryDoc {
 export type UserRole = "admin" | "member" | "friend";
 
 /** Every area of the site that has its own audience — see lib/features.ts. */
-export type FeatureKey = "calendar" | "family" | "vault" | "feedback";
+export type FeatureKey = "calendar" | "family" | "vault" | "feedback" | "christmas";
 
 export interface UserDoc {
   email: string;
@@ -213,4 +213,27 @@ export interface PasswordVersionDoc {
   version: string;
   setBy: string;
   at: Date;
+}
+
+/**
+ * One year's Secret Santa. The doc id is the year, so there is at most one
+ * exchange a year. `assignments` is giver person id -> receiver person id
+ * and is the one secret here: routes read it only through the helpers in
+ * lib/secret-santa.ts, which hand each viewer their own pair and nothing
+ * else.
+ */
+export interface SecretSantaDoc {
+  year: number;
+  /** Whole dollars, or null for "no limit set". */
+  budget: number | null;
+  /** A calendar day, "YYYY-MM-DD" — a date, not an instant, so no timezone. */
+  exchangeDate: string | null;
+  /** Family and friends alike, by person id. */
+  participantIds: string[];
+  /** Empty until drawn. Only ever holds pairs of current participants. */
+  assignments: Record<string, string>;
+  drawnAt: Date | null;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
 }

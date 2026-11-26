@@ -5,6 +5,7 @@ import { FEATURES, parseOptIns } from "../lib/features.js";
 import { peopleRepo } from "../lib/people-repo.js";
 import type { Persona } from "../lib/persona.js";
 import { render } from "../lib/render.js";
+import { secretSantaRepo } from "../lib/secret-santa-repo.js";
 import { IAP_SYNC_WARNING, usersRepo } from "../lib/users-repo.js";
 import { requireAdmin } from "../middleware/access-control.js";
 import { loadPersonaDirectory } from "../middleware/personas.js";
@@ -20,6 +21,8 @@ import { loadPersonaDirectory } from "../middleware/personas.js";
  * separate grant/revoke here, unlike a family member's card.
  */
 export const friendsRouter = Router();
+
+export const IN_EXCHANGE_ERROR = "Take them out of Secret Santa first.";
 
 function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -112,6 +115,10 @@ friendsRouter.post("/friends/:id/delete", requireAdmin, async (req, res, next) =
     const friend = friendOr404(req, req.params.id);
     if (!friend) {
       res.status(404).send("Friend not found");
+      return;
+    }
+    if (await secretSantaRepo.isParticipantAnywhere(friend.personId!)) {
+      res.status(400).send(renderFriends(req, { error: IN_EXCHANGE_ERROR }));
       return;
     }
     const { iapFailed } = friend.role ? await usersRepo.deleteUser(friend.email!) : { iapFailed: false };

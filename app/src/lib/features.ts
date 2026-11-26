@@ -26,6 +26,7 @@ export const FEATURES: Feature[] = [
   { key: "calendar", label: "Calendar", href: "/", paths: ["/", "/events", "/categories"], nav: true },
   { key: "family", label: "Family", href: "/family", paths: ["/family"], nav: true },
   { key: "vault", label: "Vault", href: "/subscriptions", paths: ["/subscriptions"], nav: true },
+  { key: "christmas", label: "Christmas", href: "/christmas", paths: ["/christmas"], nav: true },
   { key: "feedback", label: "Feedback", href: "/feedback", paths: ["/feedback"], nav: false },
 ];
 

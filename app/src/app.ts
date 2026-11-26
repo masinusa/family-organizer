@@ -8,6 +8,7 @@ import { applyImpersonation } from "./middleware/impersonation.js";
 import { loadPersonas } from "./middleware/personas.js";
 import { accessDeniedRouter } from "./routes/access-denied.js";
 import { categoriesRouter } from "./routes/categories.js";
+import { christmasRouter } from "./routes/christmas.js";
 import { eventsRouter } from "./routes/events.js";
 import { familyRouter } from "./routes/family.js";
 import { feedbackRouter } from "./routes/feedback.js";
@@ -53,6 +54,7 @@ export function createApp() {
   // family members and their accounts are managed.
   app.use(familyRouter);
   app.use(subscriptionsRouter);
+  app.use(christmasRouter);
   app.use(friendsRouter);
   app.use(feedbackRouter);
 

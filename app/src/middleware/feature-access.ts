@@ -6,6 +6,8 @@ import {
   type AccessContext,
   type Feature,
 } from "../lib/features.js";
+import { secretSantaRepo } from "../lib/secret-santa-repo.js";
+import type { FeatureKey } from "../lib/types.js";
 import { forbidden } from "./access-control.js";
 
 declare module "express-serve-static-core" {
@@ -16,12 +18,15 @@ declare module "express-serve-static-core" {
 }
 
 /**
- * What a viewer reaches by taking part rather than by being opted in. No
- * feature grants access that way yet; family get everything regardless,
- * so only a friend's request will ever pay for working it out.
+ * What a viewer reaches by taking part rather than by being opted in: a
+ * friend in any Secret Santa can open the Christmas page. Family get
+ * everything regardless, so only a friend's request pays for the read.
  */
-async function participation(_req: Request): Promise<AccessContext> {
-  return NO_PARTICIPATION;
+async function participation(req: Request): Promise<AccessContext> {
+  if (req.appUser!.role !== "friend") return NO_PARTICIPATION;
+  const participates = new Set<FeatureKey>();
+  if (await secretSantaRepo.isParticipantAnywhere(req.persona!.personId!)) participates.add("christmas");
+  return { participates };
 }
 
 /**

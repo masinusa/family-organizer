@@ -270,6 +270,10 @@ don't rewrite — newest entry last in each section.
   uses a fixed message for this reason. `views/subscription.eta` still
   interpolates the (admin-set) subscription name this way. The same
   escaping trips up tests: assert on `isn&#39;t`, not `isn't`.
+- A test asserting that a page *doesn't* contain something has to
+  match markup, not a bare class name: `layout.eta` inlines all the CSS, so
+  `/santa-table/` matches the stylesheet on every page. Assert on
+  `class="santa-table"` or `name="to:`.
 
 ## Decisions
 
@@ -580,6 +584,22 @@ don't rewrite — newest entry last in each section.
   The gate fails closed, so a new page is invisible to friends until it's
   registered there. Static files are served above the gate, because the
   favicon belongs to no feature.
+- Secret Santa's assignment map lives on the exchange doc
+  (`secretSantas/{year}.assignments`), not in a subcollection per giver.
+  It's read whole on every page anyway, to draw the viewer's own pair
+  and to flag unassigned people for admins. Nothing reaches the browser
+  except through `recipientOf` (one pair) or the admin's opt-in table.
+  Changing who's in **prunes** pairs that name someone who left and keeps
+  the rest, instead of redrawing. Some people may already have shopped, so
+  the page names who's left without a pair and the admin decides. A
+  person still in any exchange can't be deleted, from the tree or from
+  `/friends`. That's what keeps `personaFor` in `routes/christmas.ts`
+  free to throw on an id that resolves to nobody.
+- The draw is randomised backtracking with a step cap
+  (`drawAssignments`), not "shuffle until it works". The rules (partners
+  both ways, last year's pair as drawn) can make a draw impossible, and the
+  cap is what turns "impossible" into a clear error instead of a
+  hung request. Tested over 500 seeded draws for validity, not over one.
 
 ## Guidelines
 

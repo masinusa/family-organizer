@@ -36,7 +36,7 @@ test("the root owns only itself, not everything under it", () => {
 
 test("family accounts open every feature", () => {
   for (const role of ["admin", "member"] as const) {
-    assert.equal(allowedFeatures(viewer(role), NO_PARTICIPATION).length, 4);
+    assert.equal(allowedFeatures(viewer(role), NO_PARTICIPATION).length, 5);
     assert.equal(canOpenPath(viewer(role), "/subscriptions", NO_PARTICIPATION), true);
   }
 });
@@ -64,7 +64,7 @@ test("taking part opens a feature without an opt-in", () => {
 });
 
 test("a path no feature claims is family only — the gate fails closed", () => {
-  const everything = viewer("friend", ["calendar", "family", "vault", "feedback"]);
+  const everything = viewer("friend", ["calendar", "family", "vault", "feedback", "christmas"]);
   assert.equal(canOpenPath(everything, "/friends", NO_PARTICIPATION), false);
   assert.equal(canOpenPath(everything, "/admin/feedback", NO_PARTICIPATION), false);
   assert.equal(canOpenPath(everything, "/some-page-added-later", NO_PARTICIPATION), false);

@@ -26,6 +26,8 @@ import {
   type PersonaDirectory,
 } from "../lib/persona.js";
 import { buildTreeLayout } from "../lib/tree-layout.js";
+import { secretSantaRepo } from "../lib/secret-santa-repo.js";
+import { IN_EXCHANGE_ERROR } from "./friends.js";
 import type { PersonaInput, UserRole } from "../lib/types.js";
 
 export const familyRouter = Router();
@@ -464,6 +466,12 @@ familyRouter.post("/family/:id/delete", requireAdmin, async (req, res, next) => 
   try {
     if (personas(req).byId(req.params.id)?.role) {
       res.status(400).send(await renderPerson(req, req.params.id, { error: HAS_ACCESS_DELETE_ERROR }));
+      return;
+    }
+    // An exchange naming somebody who no longer exists would draw them as
+    // an unknown face and leave their Santa buying for nobody.
+    if (await secretSantaRepo.isParticipantAnywhere(req.params.id)) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: IN_EXCHANGE_ERROR }));
       return;
     }
     await peopleRepo.deletePerson(req.params.id);

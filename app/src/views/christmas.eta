@@ -1,0 +1,40 @@
+<% layout("./layout") %>
+<h1>Christmas</h1>
+<p class="who">Getting ready for the holidays, all in one place.</p>
+
+<h2>Secret Santa</h2>
+<% if (it.canStart) { %>
+<form method="post" action="/christmas/secret-santa">
+  <input type="hidden" name="year" value="<%= it.thisYear %>" />
+  <button type="submit" class="new-btn">Start Secret Santa <%= it.thisYear %></button>
+</form>
+<% } %>
+
+<% if (it.cards.length === 0) { %>
+<p class="empty-state">
+  <% if (it.canStart) { %>No Secret Santa yet. Start this year's above.<% } else { %>You're not in a Secret Santa yet.<% } %>
+</p>
+<% } %>
+
+<% it.cards.forEach(function (card) { %>
+<a class="card sub-card" href="/christmas/secret-santa/<%= card.year %>">
+  <div class="bar"></div>
+  <div class="sub-row">
+    <div class="sub-main">
+      <span class="sub-name">Secret Santa <%= card.year %></span>
+      <div class="meta-line when">
+        <span><%= card.count %> <%= card.count === 1 ? "person" : "people" %></span>
+        <% if (card.budget) { %><span><%= card.budget %> budget</span><% } %>
+        <% if (card.date) { %><span><%= card.date %></span><% } %>
+        <% if (!card.drawn) { %><span>Names not drawn yet</span><% } %>
+      </div>
+    </div>
+    <% if (card.recipient) { %>
+    <span class="santa-chip">For <%~ include("./_persona-chip", { persona: card.recipient }) %></span>
+    <% } else if (!card.isIn) { %>
+    <span class="when">Not taking part</span>
+    <% } %>
+    <span class="card-chev" aria-hidden="true"></span>
+  </div>
+</a>
+<% }) %>

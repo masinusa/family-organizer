@@ -729,6 +729,42 @@
       /* A friend's opt-ins (views/friends.eta): one switch per line. */
       .optin-list { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.25rem; }
 
+      /* --- Secret Santa (views/secret-santa.eta, christmas.eta) ---------
+         The reveal is the one thing a participant comes for, so it's the
+         page's centrepiece rather than another card in the list. */
+      .santa-reveal {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 1.25rem 0 0.5rem;
+        padding: 1.5rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-top: 4px solid var(--accent);
+        border-radius: var(--radius);
+        text-align: center;
+      }
+      .santa-label {
+        color: var(--accent);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .santa-name { font-family: var(--font-head); font-size: 1.35rem; }
+      .santa-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: var(--muted); white-space: nowrap; }
+      .santa-table { margin-top: 0.5rem; }
+      .santa-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        gap: 0.6rem;
+        margin-top: 0.6rem;
+      }
+      .santa-row select { margin-top: 0; }
+      .santa-arrow { color: var(--muted); }
+
       .when { margin: 0.85rem 0 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
       .when-row { display: flex; align-items: center; gap: 0.6rem; }
       .when-label {

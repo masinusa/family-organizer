@@ -175,3 +175,24 @@ A subscription lists only for family members on its `memberEmails`; admins
 see all of them. Filtering happens in the app
 (`app/src/lib/subscription-access.ts`), not in the Firestore query — see ADR
 0007 and the knowledge base for why.
+
+**`secretSantas/{year}`** (top-level collection, doc id is the year)
+
+| field          | notes                                                         |
+| -------------- | ------------------------------------------------------------- |
+| year           | integer                                                       |
+| budget         | nullable whole dollars, 1–10,000                              |
+| exchangeDate   | nullable `"YYYY-MM-DD"` — a calendar day, not an instant      |
+| participantIds | person ids, family or friend                                  |
+| assignments    | map giver person id → receiver person id; `{}` until drawn    |
+| drawnAt        | nullable Timestamp of the last draw (not of a hand edit)      |
+| createdBy      | Email from the verified IAP identity                          |
+| createdAt      | Server-generated Firestore timestamp                          |
+| updatedAt      | Server-generated Firestore timestamp                          |
+
+One exchange a year. `assignments` is the secret: routes read it only through
+`app/src/lib/secret-santa.ts`, and each page carries the viewer's own pair
+and nothing else. An admin sees the full map only by opening it on purpose
+(`?all=1`), so running an exchange doesn't spoil it for them. A friend can
+open `/christmas` exactly when they appear in some exchange's
+`participantIds` (ADR 0008).
