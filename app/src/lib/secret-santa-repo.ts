@@ -1,7 +1,7 @@
 import { Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
 import { prunedAssignments } from "./secret-santa.js";
-import type { SecretSantaDoc } from "./types.js";
+import type { SecretSantaDoc, WishItem } from "./types.js";
 
 const exchanges = () => firestore.collection("secretSantas");
 
@@ -93,6 +93,23 @@ export async function setAssignments(year: number, assignments: Record<string, s
     .update({ assignments, ...(drawn ? { drawnAt: now } : {}), updatedAt: now });
 }
 
+const wishlist = (year: number, personId: string) =>
+  exchanges().doc(String(year)).collection("wishlists").doc(personId);
+
+/**
+ * One list per person per exchange, keyed by person id. The routes only
+ * ever write the viewer's own (the id comes from their persona, never
+ * the form) and read their own and their recipient's.
+ */
+export async function getWishlist(year: number, personId: string): Promise<WishItem[]> {
+  const snap = await wishlist(year, personId).get();
+  return snap.exists ? (snap.data()!.items as WishItem[]) : [];
+}
+
+export async function setWishlist(year: number, personId: string, items: WishItem[]): Promise<void> {
+  await wishlist(year, personId).set({ items, updatedAt: Timestamp.now() });
+}
+
 /** Object form so tests can stub a method — see users-repo.ts for why. */
 export const secretSantaRepo = {
   getExchange,
@@ -102,4 +119,6 @@ export const secretSantaRepo = {
   setDetails,
   setParticipants,
   setAssignments,
+  getWishlist,
+  setWishlist,
 };

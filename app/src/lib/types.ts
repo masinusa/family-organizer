@@ -237,3 +237,13 @@ export interface SecretSantaDoc {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * One idea on a Secret Santa wish list. At least one of the two is set:
+ * a bare link is fine, and so is an idea with nothing to link to.
+ */
+export interface WishItem {
+  text: string;
+  /** Validated http(s) only — see parseLink in lib/event-input.ts. */
+  link: string | null;
+}

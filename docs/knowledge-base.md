@@ -600,6 +600,12 @@ don't rewrite — newest entry last in each section.
   both ways, last year's pair as drawn) can make a draw impossible, and the
   cap is what turns "impossible" into a clear error instead of a
   hung request. Tested over 500 seeded draws for validity, not over one.
+- Wish lists are a textarea, one idea per line, with a pasted link lifted
+  out of its line (`lib/wishlist.ts`). No add/remove-row JavaScript, and it
+  reads like the list people would write anyway. It reuses `parseLink` for
+  the http(s) check and the mailbox linkifier's trailing-punctuation rule.
+  `wishlistText` is the inverse, and a test checks that the round trip
+  changes nothing, so re-saving an untouched list is a no-op.
 
 ## Guidelines
 

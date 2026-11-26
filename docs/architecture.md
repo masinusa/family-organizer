@@ -196,3 +196,15 @@ and nothing else. An admin sees the full map only by opening it on purpose
 (`?all=1`), so running an exchange doesn't spoil it for them. A friend can
 open `/christmas` exactly when they appear in some exchange's
 `participantIds` (ADR 0008).
+
+**`secretSantas/{year}/wishlists/{personId}`** (subcollection)
+
+| field     | notes                                                          |
+| --------- | -------------------------------------------------------------- |
+| items     | array of `{text, link}`, at most 30; `link` is http(s) or null |
+| updatedAt | Server-generated Firestore timestamp                           |
+
+Keyed by person id, which the route takes from the viewer's persona and never
+from the form, so you can only ever write your own list. A page carries
+two lists at most: your own to edit, and your recipient's to read. The admin's
+full assignment list doesn't include anyone's.

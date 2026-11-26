@@ -5,7 +5,7 @@ import express from "express";
 import { FEATURES } from "../src/lib/features.js";
 import { PersonaDirectory } from "../src/lib/persona.js";
 import { secretSantaRepo } from "../src/lib/secret-santa-repo.js";
-import type { PersonDoc, SecretSantaDoc, UserDoc } from "../src/lib/types.js";
+import type { PersonDoc, SecretSantaDoc, UserDoc, WishItem } from "../src/lib/types.js";
 import { christmasRouter } from "../src/routes/christmas.js";
 
 const at = new Date(2026, 9, 1);
@@ -32,8 +32,9 @@ const exchange: SecretSantaDoc = {
   drawnAt: at, createdBy: "ada@example.com", createdAt: at, updatedAt: at,
 };
 
-async function get(as: string, path: string): Promise<{ status: number; html: string }> {
+async function request(as: string, path: string, form?: Record<string, string>): Promise<{ status: number; html: string }> {
   const app = express();
+  app.use(express.urlencoded({ extended: false }));
   app.use((req, _res, next) => {
     const account = directory.byId(as)!;
     req.user = { email: account.email! };
@@ -47,16 +48,29 @@ async function get(as: string, path: string): Promise<{ status: number; html: st
   const server = app.listen(0);
   try {
     const { port } = server.address() as AddressInfo;
-    const res = await fetch(`http://127.0.0.1:${port}${path}`);
+    const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+      redirect: "manual",
+      ...(form ? { method: "POST", body: new URLSearchParams(form) } : {}),
+    });
     return { status: res.status, html: await res.text() };
   } finally {
     server.close();
   }
 }
 
+const get = (as: string, path: string) => request(as, path);
+
+const lists: Record<string, WishItem[]> = {
+  cal: [{ text: "Hiking boots", link: "https://shop.example/boots" }],
+  rae: [{ text: "Rae's secret wish", link: null }],
+  bea: [{ text: "Bea's own idea", link: null }],
+};
+
 function stubRepo(t: { mock: { method: Function } }) {
   t.mock.method(secretSantaRepo, "getExchange", async (year: number) => (year === 2026 ? exchange : null));
   t.mock.method(secretSantaRepo, "listExchanges", async () => [exchange]);
+  t.mock.method(secretSantaRepo, "getWishlist", async (_year: number, id: string) => lists[id] ?? []);
+  return { saved: t.mock.method(secretSantaRepo, "setWishlist", async () => {}) };
 }
 
 /** Names of people the viewer is *not* buying for, as they'd appear in the reveal. */
@@ -111,4 +125,55 @@ test("the hub lists only exchanges the viewer is in, with their own pair", async
   assert.doesNotMatch(bea.html, /Rae Friend|Ada Admin<\/span>/);
   const mo = await get("mo", "/christmas");
   assert.doesNotMatch(mo.html, /href="\/christmas\/secret-santa\/2026"/);
+});
+
+test("a participant reads their recipient's wish list and edits their own — no one else's", async (t) => {
+  stubRepo(t);
+  const { html } = await get("bea", "/christmas/secret-santa/2026");
+  assert.match(html, /Hiking boots/);
+  assert.match(html, /href="https:\/\/shop.example\/boots"[^>]*rel="noopener noreferrer nofollow"/);
+  assert.match(html, /<textarea name="wishlist"[^>]*>Bea&#39;s own idea<\/textarea>/);
+  assert.doesNotMatch(html, /Rae&#39;s secret wish/);
+});
+
+test("the full assignment list doesn't come with everybody's wish lists", async (t) => {
+  stubRepo(t);
+  const { html } = await get("ada", "/christmas/secret-santa/2026?all=1");
+  assert.doesNotMatch(html, /Hiking boots|Rae&#39;s secret wish/);
+});
+
+test("saving a wish list writes the viewer's own, whatever else is posted", async (t) => {
+  const { saved } = stubRepo(t);
+  const res = await request("bea", "/christmas/secret-santa/2026/wishlist", {
+    wishlist: "Socks\nA kite https://kites.example",
+    personId: "cal",
+  });
+  assert.equal(res.status, 302);
+  assert.equal(saved.mock.callCount(), 1);
+  const [year, personId, items] = saved.mock.calls[0]!.arguments;
+  assert.equal(year, 2026);
+  assert.equal(personId, "bea");
+  assert.deepEqual(items, [
+    { text: "Socks", link: null },
+    { text: "A kite", link: "https://kites.example/" },
+  ]);
+});
+
+test("someone not taking part can't save a wish list", async (t) => {
+  const { saved } = stubRepo(t);
+  assert.equal((await request("mo", "/christmas/secret-santa/2026/wishlist", { wishlist: "x" })).status, 404);
+  // An admin running it without taking part has no list either.
+  const outside = { ...exchange, participantIds: ["bea", "cal", "rae"], assignments: {} };
+  t.mock.method(secretSantaRepo, "getExchange", async () => outside);
+  assert.equal((await request("ada", "/christmas/secret-santa/2026/wishlist", { wishlist: "x" })).status, 404);
+  assert.equal(saved.mock.callCount(), 0);
+});
+
+test("a rejected wish list comes back with what was typed", async (t) => {
+  const { saved } = stubRepo(t);
+  const res = await request("bea", "/christmas/secret-santa/2026/wishlist", { wishlist: "Bad javascript:alert(1) https://ok.example\n" + "x".repeat(300) });
+  assert.equal(res.status, 400);
+  assert.match(res.html, /Keep each idea to 200 characters/);
+  assert.match(res.html, /javascript:alert\(1\)/);
+  assert.equal(saved.mock.callCount(), 0);
 });

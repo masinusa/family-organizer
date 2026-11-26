@@ -17,7 +17,8 @@ import {
   unassignedIds,
 } from "../lib/secret-santa.js";
 import { EXCHANGE_EXISTS_ERROR, secretSantaRepo } from "../lib/secret-santa-repo.js";
-import type { SecretSantaDoc } from "../lib/types.js";
+import type { SecretSantaDoc, WishItem } from "../lib/types.js";
+import { linkHost, MAX_ITEMS, parseWishlist, wishlistText } from "../lib/wishlist.js";
 import { isAdmin, requireAdmin } from "../middleware/access-control.js";
 
 /**
@@ -99,6 +100,27 @@ interface Notice {
   showAll?: boolean;
   /** A rejected hand edit, so the table re-renders with what was picked. */
   draft?: Record<string, string>;
+  /** A rejected wish list, so nobody loses what they typed. */
+  wishlistDraft?: string;
+}
+
+/**
+ * Your own list to edit, and the list of whoever you're buying for — the
+ * only two a page ever carries. Nobody reads anyone else's, admins
+ * included: the full assignment list doesn't come with everybody's lists.
+ */
+async function wishlists(req: Request, exchange: SecretSantaDoc, notice: Notice) {
+  if (!isParticipant(exchange, myId(req))) return { myWishlist: null, theirWishlist: null };
+  const recipientId = recipientOf(exchange, myId(req));
+  const [own, theirs] = await Promise.all([
+    secretSantaRepo.getWishlist(exchange.year, myId(req)),
+    recipientId ? secretSantaRepo.getWishlist(exchange.year, recipientId) : Promise.resolve(null),
+  ]);
+  const show = (items: WishItem[]) => items.map((item) => ({ ...item, host: item.link ? linkHost(item.link) : null }));
+  return {
+    myWishlist: notice.wishlistDraft ?? wishlistText(own),
+    theirWishlist: theirs ? show(theirs) : null,
+  };
 }
 
 /**
@@ -128,6 +150,8 @@ async function renderExchange(req: Request, exchange: SecretSantaDoc, notice: No
     participantIds: exchange.participantIds,
     participants,
     ...mine(req, exchange),
+    ...(await wishlists(req, exchange, notice)),
+    maxIdeas: MAX_ITEMS,
     isAdmin: admin,
     showAll,
     // Everything below is admin-only, and the table only with the list open.
@@ -272,6 +296,32 @@ christmasRouter.post("/christmas/secret-santa/:year/assignments", requireAdmin, 
     }
     await secretSantaRepo.setAssignments(exchange.year, assignments, false);
     res.redirect(`/christmas/secret-santa/${exchange.year}?all=1`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Only ever the viewer's own list: the id is their persona's, never a
+ * form field, so there's no list here anyone could post on someone
+ * else's behalf. Admins not taking part have no list to write.
+ */
+christmasRouter.post("/christmas/secret-santa/:year/wishlist", async (req, res, next) => {
+  try {
+    const exchange = await loadVisible(req, res);
+    if (!exchange) return;
+    if (!isParticipant(exchange, myId(req))) {
+      res.status(404).send("Not found");
+      return;
+    }
+    const raw = typeof req.body.wishlist === "string" ? req.body.wishlist : "";
+    const items = parseWishlist(raw);
+    if ("error" in items) {
+      res.status(400).send(await renderExchange(req, exchange, { error: items.error, wishlistDraft: raw }));
+      return;
+    }
+    await secretSantaRepo.setWishlist(exchange.year, myId(req), items);
+    res.redirect(`/christmas/secret-santa/${exchange.year}#wishlist`);
   } catch (err) {
     next(err);
   }
