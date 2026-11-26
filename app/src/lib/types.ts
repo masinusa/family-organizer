@@ -247,3 +247,14 @@ export interface WishItem {
   /** Validated http(s) only — see parseLink in lib/event-input.ts. */
   link: string | null;
 }
+
+/**
+ * One note between a Santa and their recipient. It names a side, never a
+ * person: the recipient's half of the conversation must not be able to
+ * learn who the Santa is from anything stored or shown.
+ */
+export interface SantaMessage {
+  from: "santa" | "recipient";
+  text: string;
+  at: Date;
+}

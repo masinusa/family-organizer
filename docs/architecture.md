@@ -208,3 +208,15 @@ Keyed by person id, which the route takes from the viewer's persona and never
 from the form, so you can only ever write your own list. A page carries
 two lists at most: your own to edit, and your recipient's to read. The admin's
 full assignment list doesn't include anyone's.
+
+**`secretSantas/{year}/threads/{giverId}_{receiverId}`** (subcollection)
+
+| field    | notes                                                               |
+| -------- | ------------------------------------------------------------------- |
+| messages | array of `{from: "santa" \| "recipient", text, at}`, at most 200    |
+
+The anonymous notes between a Santa and their recipient. A message names a
+side, never a person. The doc is keyed by the pair, so an admin changing an
+assignment starts a fresh conversation, and the old Santa's notes never
+reach a recipient they no longer have. Neither post route takes an id: the
+server works out the pair from who's asking.

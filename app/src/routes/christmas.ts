@@ -12,12 +12,14 @@ import {
   NO_VALID_DRAW_ERROR,
   parseAssignments,
   parseDetails,
+  parseMessage,
   recipientOf,
+  santaOf,
   TOO_FEW_ERROR,
   unassignedIds,
 } from "../lib/secret-santa.js";
-import { EXCHANGE_EXISTS_ERROR, secretSantaRepo } from "../lib/secret-santa-repo.js";
-import type { SecretSantaDoc, WishItem } from "../lib/types.js";
+import { EXCHANGE_EXISTS_ERROR, secretSantaRepo, THREAD_FULL_ERROR } from "../lib/secret-santa-repo.js";
+import type { SantaMessage, SecretSantaDoc, WishItem } from "../lib/types.js";
 import { linkHost, MAX_ITEMS, parseWishlist, wishlistText } from "../lib/wishlist.js";
 import { isAdmin, requireAdmin } from "../middleware/access-control.js";
 
@@ -105,6 +107,31 @@ interface Notice {
 }
 
 /**
+ * The two anonymous conversations a participant can be in: with the
+ * person they're buying for (as Santa), and with whoever is buying for
+ * them (as recipient). Each message comes out as "mine or not" plus text
+ * and time, and nothing else, so the recipient's side has nothing in it
+ * that could name their Santa. null means there's no one on the other end
+ * yet (names not drawn).
+ */
+async function threads(req: Request, exchange: SecretSantaDoc) {
+  const me = myId(req);
+  if (!isParticipant(exchange, me)) return { asSanta: null, asRecipient: null };
+  const recipientId = recipientOf(exchange, me);
+  const santaId = santaOf(exchange, me);
+  const shape = (messages: SantaMessage[], mySide: SantaMessage["from"]) =>
+    messages.map((m) => ({ mine: m.from === mySide, text: m.text, at: m.at.toLocaleString() }));
+  const [toRecipient, fromSanta] = await Promise.all([
+    recipientId ? secretSantaRepo.getThread(exchange.year, me, recipientId) : Promise.resolve(null),
+    santaId ? secretSantaRepo.getThread(exchange.year, santaId, me) : Promise.resolve(null),
+  ]);
+  return {
+    asSanta: toRecipient ? shape(toRecipient, "santa") : recipientId ? [] : null,
+    asRecipient: fromSanta ? shape(fromSanta, "recipient") : santaId ? [] : null,
+  };
+}
+
+/**
  * Your own list to edit, and the list of whoever you're buying for — the
  * only two a page ever carries. Nobody reads anyone else's, admins
  * included: the full assignment list doesn't come with everybody's lists.
@@ -151,6 +178,7 @@ async function renderExchange(req: Request, exchange: SecretSantaDoc, notice: No
     participants,
     ...mine(req, exchange),
     ...(await wishlists(req, exchange, notice)),
+    ...(await threads(req, exchange)),
     maxIdeas: MAX_ITEMS,
     isAdmin: admin,
     showAll,
@@ -322,6 +350,58 @@ christmasRouter.post("/christmas/secret-santa/:year/wishlist", async (req, res, 
     }
     await secretSantaRepo.setWishlist(exchange.year, myId(req), items);
     res.redirect(`/christmas/secret-santa/${exchange.year}#wishlist`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * The two ways into the anonymous thread. Neither takes an id: the server
+ * works out the pair from who's asking, so the recipient's page, form
+ * action included, never carries anything that names their Santa.
+ */
+async function postNote(
+  req: Request,
+  res: Response,
+  side: SantaMessage["from"],
+): Promise<void> {
+  const exchange = await loadVisible(req, res);
+  if (!exchange) return;
+  const me = myId(req);
+  const other = side === "santa" ? recipientOf(exchange, me) : santaOf(exchange, me);
+  if (!isParticipant(exchange, me) || !other) {
+    res.status(404).send("Not found");
+    return;
+  }
+  const text = parseMessage(req.body.text);
+  if (typeof text !== "string") {
+    res.status(400).send(await renderExchange(req, exchange, { error: text.error }));
+    return;
+  }
+  const [giver, receiver] = side === "santa" ? [me, other] : [other, me];
+  try {
+    await secretSantaRepo.addMessage(exchange.year, giver, receiver, side, text);
+  } catch (err) {
+    if (err instanceof Error && err.message === THREAD_FULL_ERROR) {
+      res.status(400).send(await renderExchange(req, exchange, { error: err.message }));
+      return;
+    }
+    throw err;
+  }
+  res.redirect(`/christmas/secret-santa/${exchange.year}#${side === "santa" ? "ask" : "from-santa"}`);
+}
+
+christmasRouter.post("/christmas/secret-santa/:year/ask-recipient", async (req, res, next) => {
+  try {
+    await postNote(req, res, "santa");
+  } catch (err) {
+    next(err);
+  }
+});
+
+christmasRouter.post("/christmas/secret-santa/:year/reply-santa", async (req, res, next) => {
+  try {
+    await postNote(req, res, "recipient");
   } catch (err) {
     next(err);
   }

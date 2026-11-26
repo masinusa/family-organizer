@@ -1,7 +1,7 @@
 import { Timestamp, type DocumentData } from "@google-cloud/firestore";
 import { firestore } from "./firestore.js";
-import { prunedAssignments } from "./secret-santa.js";
-import type { SecretSantaDoc, WishItem } from "./types.js";
+import { prunedAssignments, THREAD_MAX } from "./secret-santa.js";
+import type { SantaMessage, SecretSantaDoc, WishItem } from "./types.js";
 
 const exchanges = () => firestore.collection("secretSantas");
 
@@ -110,6 +110,43 @@ export async function setWishlist(year: number, personId: string, items: WishIte
   await wishlist(year, personId).set({ items, updatedAt: Timestamp.now() });
 }
 
+/**
+ * Keyed by the *pair*, not the giver: if an admin changes an assignment,
+ * the new Santa starts a fresh conversation instead of inheriting the old
+ * one, and the old Santa's notes never reach a recipient they no longer
+ * have.
+ */
+const thread = (year: number, giverId: string, receiverId: string) =>
+  exchanges().doc(String(year)).collection("threads").doc(`${giverId}_${receiverId}`);
+
+export async function getThread(year: number, giverId: string, receiverId: string): Promise<SantaMessage[]> {
+  const snap = await thread(year, giverId, receiverId).get();
+  if (!snap.exists) return [];
+  return (snap.data()!.messages as Array<{ from: SantaMessage["from"]; text: string; at: Timestamp }>).map((m) => ({
+    from: m.from,
+    text: m.text,
+    at: m.at.toDate(),
+  }));
+}
+
+export const THREAD_FULL_ERROR = "This conversation is full.";
+
+export async function addMessage(
+  year: number,
+  giverId: string,
+  receiverId: string,
+  from: SantaMessage["from"],
+  text: string,
+): Promise<void> {
+  const ref = thread(year, giverId, receiverId);
+  await firestore.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const messages = snap.exists ? (snap.data()!.messages as unknown[]) : [];
+    if (messages.length >= THREAD_MAX) throw new Error(THREAD_FULL_ERROR);
+    tx.set(ref, { messages: [...messages, { from, text, at: Timestamp.now() }] });
+  });
+}
+
 /** Object form so tests can stub a method — see users-repo.ts for why. */
 export const secretSantaRepo = {
   getExchange,
@@ -121,4 +158,6 @@ export const secretSantaRepo = {
   setAssignments,
   getWishlist,
   setWishlist,
+  getThread,
+  addMessage,
 };

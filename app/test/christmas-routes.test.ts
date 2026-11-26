@@ -70,7 +70,19 @@ function stubRepo(t: { mock: { method: Function } }) {
   t.mock.method(secretSantaRepo, "getExchange", async (year: number) => (year === 2026 ? exchange : null));
   t.mock.method(secretSantaRepo, "listExchanges", async () => [exchange]);
   t.mock.method(secretSantaRepo, "getWishlist", async (_year: number, id: string) => lists[id] ?? []);
-  return { saved: t.mock.method(secretSantaRepo, "setWishlist", async () => {}) };
+  // Cal buys for Rae and has asked her something; Rae answered.
+  t.mock.method(secretSantaRepo, "getThread", async (_year: number, giver: string, receiver: string) =>
+    giver === "cal" && receiver === "rae"
+      ? [
+          { from: "santa", text: "What size are you?", at: at },
+          { from: "recipient", text: "Medium, thanks!", at: at },
+        ]
+      : [],
+  );
+  return {
+    saved: t.mock.method(secretSantaRepo, "setWishlist", async () => {}),
+    sent: t.mock.method(secretSantaRepo, "addMessage", async () => {}),
+  };
 }
 
 /** Names of people the viewer is *not* buying for, as they'd appear in the reveal. */
@@ -176,4 +188,58 @@ test("a rejected wish list comes back with what was typed", async (t) => {
   assert.match(res.html, /Keep each idea to 200 characters/);
   assert.match(res.html, /javascript:alert\(1\)/);
   assert.equal(saved.mock.callCount(), 0);
+});
+
+/* ------------------------- anonymous notes ------------------------- */
+
+const santaOfEach: Record<string, string> = { bea: "Ada Admin", cal: "Bea Bloom", rae: "Cal Crane" };
+
+test("no participant's page names their Santa, anywhere in it", async (t) => {
+  stubRepo(t);
+  for (const [viewer, santaName] of Object.entries(santaOfEach)) {
+    const { html } = await get(viewer, "/christmas/secret-santa/2026");
+    assert.ok(!html.includes(santaName), `${viewer}'s page mentions ${santaName}`);
+  }
+});
+
+test("the recipient sees their Santa's notes as from 'Your Secret Santa'", async (t) => {
+  stubRepo(t);
+  const { html } = await get("rae", "/christmas/secret-santa/2026");
+  assert.match(html, /<span class="santa-who">Your Secret Santa &middot;[^<]*<\/span>\s*<p>What size are you\?<\/p>/);
+  assert.match(html, /<span class="santa-who">You &middot;[^<]*<\/span>\s*<p>Medium, thanks!<\/p>/);
+  assert.match(html, /action="\/christmas\/secret-santa\/2026\/reply-santa"/);
+});
+
+test("the Santa sees the same conversation under their recipient's name", async (t) => {
+  stubRepo(t);
+  const { html } = await get("cal", "/christmas/secret-santa/2026");
+  assert.match(html, /<h2 id="ask">Ask Rae Friend<\/h2>/);
+  assert.match(html, /<span class="santa-who">You &middot;[^<]*<\/span>\s*<p>What size are you\?<\/p>/);
+  assert.match(html, /<span class="santa-who">Rae Friend &middot;[^<]*<\/span>\s*<p>Medium, thanks!<\/p>/);
+});
+
+test("a note goes to the viewer's own pair, whatever ids are posted", async (t) => {
+  const { sent } = stubRepo(t);
+  await request("rae", "/christmas/secret-santa/2026/reply-santa", { text: "A hint!", giverId: "bea" });
+  await request("rae", "/christmas/secret-santa/2026/ask-recipient", { text: "Hi Ada", receiverId: "cal" });
+  assert.deepEqual(sent.mock.calls.map((c) => c.arguments), [
+    [2026, "cal", "rae", "recipient", "A hint!"],
+    [2026, "rae", "ada", "santa", "Hi Ada"],
+  ]);
+});
+
+test("before names are drawn there's nobody to write to", async (t) => {
+  const { sent } = stubRepo(t);
+  t.mock.method(secretSantaRepo, "getExchange", async () => ({ ...exchange, assignments: {} }));
+  const page = await get("bea", "/christmas/secret-santa/2026");
+  assert.doesNotMatch(page.html, /ask-recipient|reply-santa/);
+  assert.equal((await request("bea", "/christmas/secret-santa/2026/ask-recipient", { text: "x" })).status, 404);
+  assert.equal(sent.mock.callCount(), 0);
+});
+
+test("an empty note is refused", async (t) => {
+  const { sent } = stubRepo(t);
+  const res = await request("bea", "/christmas/secret-santa/2026/ask-recipient", { text: "   " });
+  assert.equal(res.status, 400);
+  assert.equal(sent.mock.callCount(), 0);
 });

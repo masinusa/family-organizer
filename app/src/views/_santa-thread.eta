@@ -1,0 +1,17 @@
+<%
+  /* One anonymous Secret Santa conversation. Takes only text, a time and
+     whether each note is the viewer's — `them` is a fixed label on the
+     recipient's side, so nothing here can name a Santa. */
+%>
+<% if (it.messages.length === 0) { %>
+<p class="hint">Nothing yet.</p>
+<% } else { %>
+<ol class="santa-thread">
+  <% it.messages.forEach(function (m) { %>
+  <li class="<%= m.mine ? "is-mine" : "" %>">
+    <span class="santa-who"><%= m.mine ? "You" : it.them %> &middot; <%= m.at %></span>
+    <p><%= m.text %></p>
+  </li>
+  <% }) %>
+</ol>
+<% } %>

@@ -606,6 +606,13 @@ don't rewrite — newest entry last in each section.
   the http(s) check and the mailbox linkifier's trailing-punctuation rule.
   `wishlistText` is the inverse, and a test checks that the round trip
   changes nothing, so re-saving an untouched list is a no-op.
+- Anonymity is tested by rendering, not by reading the template:
+  `test/christmas-routes.test.ts` spins up the real router on a port, renders
+  every participant's page, and asserts their Santa's **name** appears
+  nowhere in the HTML. That catches leaks a template review misses, like a
+  name in a `title`, an `aria-label`, or a form action. The notes routes
+  take no ids at all, so the test also posts hand-crafted `giverId` and
+  `receiverId` fields and checks they're ignored.
 
 ## Guidelines
 

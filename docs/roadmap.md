@@ -55,7 +55,12 @@
   on the tree or seeing the rest of the site. Admins add them at
   `/friends` and switch features on per friend. Every page is behind one
   gate that fails closed (ADR 0008).
-- [ ] **Christmas page** — `/christmas`, starting with Secret Santa:
+- [x] **Christmas page** — `/christmas`, starting with Secret Santa:
   admin-run draw with editable assignments, wish lists, budget and date,
   and anonymous questions between a Santa and their recipient. Friends
   reach it by taking part.
+- [ ] **More of Christmas** — the hub has room for more sections next to
+  Secret Santa: a shared gift tracker, the menu, who's hosting when.
+- [ ] **Secret Santa extras** — per-exchange "A can't draw B" pairs, and
+  showing friends that something's new (there are no notifications yet,
+  so a Santa's question waits until the recipient next looks).

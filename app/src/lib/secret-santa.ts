@@ -140,6 +140,25 @@ export function recipientOf(exchange: SecretSantaDoc, personId: string): string 
 }
 
 /**
+ * Who is buying for this person. Server-side only — it keys the
+ * recipient's side of the anonymous thread, and must never reach their
+ * page in any form (a name, an id, a form action).
+ */
+export function santaOf(exchange: SecretSantaDoc, personId: string): string | null {
+  return Object.entries(exchange.assignments).find(([, receiver]) => receiver === personId)?.[0] ?? null;
+}
+
+export const MESSAGE_MAX = 1000;
+export const THREAD_MAX = 200;
+
+export function parseMessage(raw: unknown): string | { error: string } {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return { error: "Write something first." };
+  if (text.length > MESSAGE_MAX) return { error: `Keep a note to ${MESSAGE_MAX} characters.` };
+  return text;
+}
+
+/**
  * Participants with nobody to buy for, or nobody buying for them: what an
  * admin has to fix after changing who's in once names were drawn.
  */
