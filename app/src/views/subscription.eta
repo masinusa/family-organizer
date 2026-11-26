@@ -1,0 +1,317 @@
+<% layout("./layout") %>
+<p><a class="back" href="/subscriptions">&larr; Back to the vault</a></p>
+<h1><%= it.subscription.name %></h1>
+
+<% if (it.error) { %>
+<p class="error" role="alert"><%= it.error %></p>
+<% } %>
+<% if (it.warning) { %>
+<p class="warning" role="alert"><%= it.warning %></p>
+<% } %>
+<% if (it.saved) { %>
+<p class="success" role="status">Password saved. It's the current one for everybody now.</p>
+<% } %>
+
+<div class="meta-line who">
+  <% if (it.subscription.accountEmail) { %><span><%= it.subscription.accountEmail %></span><% } %>
+  <% if (it.subscription.accountPhone) { %><span><%= it.subscription.accountPhone %></span><% } %>
+</div>
+
+<% if (it.subscription.notes) { %>
+<p class="feedback-message"><%= it.subscription.notes %></p>
+<% } %>
+
+<h2>Who has access</h2>
+<% if (it.members.length === 0) { %>
+<p class="empty-state">Nobody has been given access to this yet.</p>
+<% } else { %>
+<ul class="roster">
+  <% it.members.forEach(function (member) { %>
+  <li class="roster-row">
+    <span class="av" style="background: <%= member.color %>; color: <%= member.ink %>"><%= member.initial %></span>
+    <span class="roster-name"><strong><%= member.label %></strong><small><%= member.sub %></small></span>
+  </li>
+  <% }) %>
+</ul>
+<% } %>
+
+<h2>Get in</h2>
+<div class="vault-actions">
+  <% if (it.subscription.link) { %>
+  <a class="new-btn" href="<%= it.subscription.link %>" rel="noreferrer noopener" target="_blank">
+    Open <%= it.subscription.name %> <span aria-hidden="true">&nearr;</span>
+  </a>
+  <% } %>
+
+  <% if (it.subscription.hasPassword) { %>
+  <form method="post" action="/subscriptions/<%= it.subscription.id %>/password/reveal">
+    <button class="new-btn" type="submit">Get password</button>
+  </form>
+  <% } else { %>
+  <p class="empty-state">No password is stored for this subscription yet.</p>
+  <% } %>
+
+  <% if (it.canReadMail) { %>
+  <form method="post" action="/subscriptions/<%= it.subscription.id %>/mail">
+    <button class="new-btn" type="submit"><%= it.subscription.name %> mail</button>
+  </form>
+  <% } %>
+</div>
+<% if (it.mailNeedsSender) { %>
+<p class="hint">
+  This is registered to the family mailbox. Set <strong>Mail from</strong> below &mdash; the sender
+  to search for, like <code>netflix.com</code> &mdash; and its mail can be read here too.
+</p>
+<% } %>
+
+<% if (it.password) { %>
+<div class="reveal" id="reveal">
+  <p class="reveal-label">
+    <%= it.revealedIsCurrent ? "Current password" : "Old password" %> &mdash; hidden again in
+    <span id="reveal-countdown">60</span>s
+  </p>
+  <code class="reveal-value" id="reveal-value"><%= it.password %></code>
+  <% if (it.revealed) { %>
+  <p class="hint">Saved by <%= it.revealed.avatar.label %> on <%= it.revealed.at.toLocaleString() %>.</p>
+  <% } %>
+  <div class="reveal-row">
+    <button class="new-btn" type="button" id="reveal-copy">Copy</button>
+    <button class="new-btn btn-quiet" type="button" id="reveal-hide">Hide now</button>
+  </div>
+  <p class="hint">Everyone with access can see that you looked this up.</p>
+</div>
+<script>
+  (function () {
+    var box = document.getElementById("reveal");
+    var value = document.getElementById("reveal-value");
+    var countdown = document.getElementById("reveal-countdown");
+    var left = 60;
+
+    function hide() {
+      box.remove();
+    }
+
+    document.getElementById("reveal-hide").addEventListener("click", hide);
+    document.getElementById("reveal-copy").addEventListener("click", function (event) {
+      navigator.clipboard.writeText(value.textContent).then(function () {
+        event.target.textContent = "Copied";
+      });
+    });
+
+    setInterval(function () {
+      left -= 1;
+      if (left <= 0) {
+        hide();
+        return;
+      }
+      countdown.textContent = String(left);
+    }, 1000);
+  })();
+</script>
+<% } %>
+
+<details class="sheet">
+  <summary class="sheet-head">
+    <span class="sheet-name"><%= it.subscription.hasPassword ? "Change the password" : "Set a password" %></span>
+    <span class="sheet-value"><%= it.subscription.hasPassword ? "Stored" : "Not set" %></span>
+    <span class="sheet-chev"></span>
+  </summary>
+  <div class="sheet-body">
+    <p class="hint">
+      Stored in Google Secret Manager, never in the family database. A new one becomes the
+      current password for everybody; the old one is kept in the history below, since a device
+      somewhere is usually still signed in with it.
+    </p>
+    <form method="post" action="/subscriptions/<%= it.subscription.id %>/password" autocomplete="off">
+      <label>
+        <%= it.subscription.hasPassword ? "New password" : "Password" %>
+        <input type="password" name="password" required maxlength="200" autocomplete="new-password" />
+      </label>
+      <button type="submit">Save password</button>
+    </form>
+  </div>
+</details>
+
+<% if (it.passwordHistory.length > 0) { %>
+<h2>Password history</h2>
+<ul class="roster">
+  <% it.passwordHistory.forEach(function (entry) { %>
+  <li class="roster-row vault-history-row">
+    <span class="av av-xs" style="background: <%= entry.avatar.color %>; color: <%= entry.avatar.ink %>"><%= entry.avatar.initial %></span>
+    <span class="roster-name">
+      <strong><%= entry.avatar.label %></strong>
+      <small><%= entry.at.toLocaleString() %><%= entry.current ? " · current" : "" %></small>
+    </span>
+    <form method="post" action="/subscriptions/<%= it.subscription.id %>/password/reveal">
+      <input type="hidden" name="version" value="<%= entry.version %>" />
+      <button class="new-btn btn-quiet" type="submit">
+        <%= entry.current ? "Get" : "Get this one" %>
+      </button>
+    </form>
+  </li>
+  <% }) %>
+</ul>
+<% } else if (it.historyMissing) { %>
+<h2>Password history</h2>
+<p class="empty-state">
+  A password is stored, but nothing recorded who saved it &mdash; that write didn't land. Saving
+  it again puts it back on the record.
+</p>
+<% } %>
+
+<% if (it.mail) { %>
+<h2><%= it.subscription.name %> mail &middot; last <%= it.windowDays %> days</h2>
+<p class="hint">
+  Only mail from <code><%= it.subscription.mailFrom %></code>. Nothing else in the mailbox is read.
+</p>
+<% if (it.mail.length === 0) { %>
+<p class="empty-state">
+  Nothing from <code><%= it.subscription.mailFrom %></code> in the last <%= it.windowDays %> days.
+  Trigger the email, then check again.
+</p>
+<% } %>
+<% it.mail.forEach(function (message, i) { %>
+<button class="card mail-card" type="button" data-mail="<%= i %>">
+  <div class="bar"></div>
+  <div class="sub-row">
+    <div class="sub-main">
+      <span class="sub-name"><%= message.subject %></span>
+      <div class="meta-line when">
+        <span><%= message.from %></span>
+        <span><%= message.ago %></span>
+      </div>
+    </div>
+    <span class="card-chev" aria-hidden="true"></span>
+  </div>
+</button>
+<% }) %>
+<% it.mail.forEach(function (message, i) { %>
+<dialog class="dialog-wide" id="mail-<%= i %>">
+  <button class="dialog-x" type="button" data-close="<%= i %>" aria-label="Close">&times;</button>
+  <h2><%= message.subject %></h2>
+  <p class="hint"><%= message.from %> &middot; <%= message.ago %></p>
+  <%
+    /* Every piece is written into the page escaped by Eta, never through a
+       JSON blob in a <script>: a mail body is the one string here that an
+       outsider authors, and "</script>" inside it would end the block.
+       The anchor is built here from a checked href rather than arriving as
+       markup, so nothing in a message can introduce a tag or an attribute.
+       The loop is one line on purpose: inside a <pre>, a newline between
+       template tags would render as a blank line in the email. */
+  %>
+  <pre class="mail-body"><% message.parts.forEach(function (part) { %><% if (part.href) { %><a class="mail-link" href="<%= part.href %>" title="<%= part.href %>" target="_blank" rel="noopener noreferrer nofollow"><%= part.label %></a><% } else { %><%= part.text %><% } %><% }) %></pre>
+  <% if (message.bodyTrimmed) { %>
+  <p class="hint">Trimmed &mdash; this email is longer than the page shows.</p>
+  <% } %>
+</dialog>
+<% }) %>
+<script>
+  (function () {
+    // One listener for every card: the mail list is re-rendered whole on
+    // each search, so there is nothing to keep in sync.
+    document.querySelectorAll("[data-mail]").forEach(function (card) {
+      card.addEventListener("click", function () {
+        document.getElementById("mail-" + card.dataset.mail).showModal();
+      });
+    });
+    document.querySelectorAll("[data-close]").forEach(function (x) {
+      x.addEventListener("click", function () {
+        document.getElementById("mail-" + x.dataset.close).close();
+      });
+    });
+  })();
+</script>
+<% } %>
+
+<% if (it.reveals.length > 0) { %>
+<h2>Recently viewed</h2>
+<ul class="roster">
+  <% it.reveals.forEach(function (reveal) { %>
+  <li class="roster-row">
+    <span class="av av-xs" style="background: <%= reveal.avatar.color %>; color: <%= reveal.avatar.ink %>"><%= reveal.avatar.initial %></span>
+    <span class="roster-name">
+      <strong><%= reveal.avatar.label %></strong>
+      <small><%= reveal.label %> &middot; <%= reveal.at.toLocaleString() %></small>
+    </span>
+  </li>
+  <% }) %>
+</ul>
+<% } %>
+
+<% if (it.isAdmin) { %>
+<h2>Manage</h2>
+<details class="sheet">
+  <summary class="sheet-head">
+    <span class="sheet-name">Details</span>
+    <span class="sheet-value"><%= it.subscription.name %></span>
+    <span class="sheet-chev"></span>
+  </summary>
+  <div class="sheet-body">
+    <form method="post" action="/subscriptions/<%= it.subscription.id %>">
+      <label>
+        Name
+        <input type="text" name="name" required maxlength="60" value="<%= it.values.name %>" />
+      </label>
+      <label>
+        Account email
+        <input type="text" name="accountEmail" value="<%= it.values.accountEmail %>" />
+      </label>
+      <label>
+        Account phone
+        <input type="text" name="accountPhone" maxlength="40" value="<%= it.values.accountPhone %>" />
+      </label>
+      <label>
+        Sign-in page
+        <input type="text" name="link" value="<%= it.values.link %>" />
+      </label>
+      <label>
+        Mail from
+        <input type="text" name="mailFrom" maxlength="100" placeholder="netflix.com" value="<%= it.values.mailFrom %>" />
+      </label>
+      <p class="hint">
+        An address or domain. Set it only when the account email above is the family mailbox:
+        it's the sender that mailbox is searched for, and nothing else in it is ever read.
+      </p>
+      <label>
+        Notes
+        <textarea name="notes" rows="3" maxlength="500"><%= it.values.notes %></textarea>
+      </label>
+      <button type="submit">Save</button>
+    </form>
+  </div>
+</details>
+
+<details class="sheet">
+  <summary class="sheet-head">
+    <span class="sheet-name">Who has access</span>
+    <span class="sheet-value"><%= it.members.length %> <%= it.members.length === 1 ? "person" : "people" %></span>
+    <span class="sheet-chev"></span>
+  </summary>
+  <div class="sheet-body">
+    <form method="post" action="/subscriptions/<%= it.subscription.id %>/access">
+      <ul class="roster">
+        <% it.roster.forEach(function (row) { %>
+        <li class="roster-row">
+          <label class="roster-who">
+            <input class="involve" type="checkbox" name="member:<%= row.email %>" <%= row.onList ? "checked" : "" %> />
+            <span class="av" style="background: <%= row.avatar.color %>; color: <%= row.avatar.ink %>"><%= row.avatar.initial %></span>
+            <span class="roster-name"><strong><%= row.avatar.label %></strong><small><%= row.email %></small></span>
+          </label>
+        </li>
+        <% }) %>
+      </ul>
+      <button type="submit">Save access</button>
+    </form>
+  </div>
+</details>
+
+<div class="actions">
+  <form
+    method="post"
+    action="/subscriptions/<%= it.subscription.id %>/delete"
+    onsubmit="return confirm('Delete <%= it.subscription.name %>? The stored password is deleted too and can\'t be recovered.');"
+  >
+    <button type="submit">Delete subscription</button>
+  </form>
+</div>
+<% } %>

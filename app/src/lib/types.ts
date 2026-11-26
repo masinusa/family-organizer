@@ -119,3 +119,77 @@ export interface FeedbackDoc extends FeedbackInput {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * One paid service the family shares. Deliberately holds no password: the
+ * value lives in Secret Manager under a name derived from `id` (see
+ * lib/secret-store.ts), and `hasPassword` is the only trace of it here, so
+ * a Firestore read — or a leaked export of it — never carries a credential.
+ */
+export interface SubscriptionDoc {
+  id: string;
+  name: string;
+  /** The address the service itself is registered to, not a family member's. */
+  accountEmail: string | null;
+  accountPhone: string | null;
+  link: string | null;
+  notes: string | null;
+  /**
+   * Which sender to search the shared family mailbox for — an address or
+   * domain like `netflix.com`. Null for most subscriptions, and required
+   * before this one offers to read mail at all: a search narrowed to one
+   * service's sender is what makes reading a mailbox nobody on the access
+   * list owns acceptable (ADR 0007).
+   */
+  mailFrom: string | null;
+  hasPassword: boolean;
+  /** Family members who can see it and reveal its password, normalized. */
+  memberEmails: string[];
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** The admin-editable half of a subscription — everything but access and the secret. */
+export interface SubscriptionInput {
+  name: string;
+  accountEmail: string | null;
+  accountPhone: string | null;
+  link: string | null;
+  notes: string | null;
+  mailFrom: string | null;
+}
+
+export type RevealAction = "password" | "mail";
+
+/**
+ * One "someone took the shared credential" record. Shown on the
+ * subscription's page: letting anyone on the list grab a password without
+ * asking is the point, so the honest counterpart is that it's on the record.
+ */
+export interface RevealDoc {
+  id: string;
+  email: string;
+  action: RevealAction;
+  /**
+   * Which stored password was taken, for `action: "password"`: a Secret
+   * Manager version id, or null for the current one (and for every reveal
+   * recorded before the history existed).
+   */
+  version: string | null;
+  at: Date;
+}
+
+/**
+ * One password save. Secret Manager keeps the values and their timestamps,
+ * but has no idea who asked for the change, so this is the record of that —
+ * and the index the history list on a subscription's page is built from,
+ * since the app never lists versions out of Secret Manager itself.
+ *
+ * `version` is also the doc id, so re-recording a save is idempotent.
+ */
+export interface PasswordVersionDoc {
+  version: string;
+  setBy: string;
+  at: Date;
+}

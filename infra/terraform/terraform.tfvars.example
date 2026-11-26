@@ -13,3 +13,8 @@ custom_domain = "yourdomain.example"
 billing_account_id   = "01C980-13952D-CD7E56"
 budget_amount_usd    = 5
 budget_currency_code = "USD"
+
+# Shared mailbox the vault can read recent mail from, for one-time codes.
+# Leave empty to turn that feature off. The app password itself is NOT here —
+# add it to Secret Manager by hand (see infra/terraform/secrets.tf).
+family_mailbox_address = "family@example.com"

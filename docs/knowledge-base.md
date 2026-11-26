@@ -207,6 +207,35 @@ don't rewrite — newest entry last in each section.
   distinguishing that one error from a genuine hiccup before telling anyone
   to wait. Note a correction needs three fixes, not one: the person's email,
   the stale `users` doc under the wrong address, and then a fresh grant.
+- **IMAP's `SINCE` search key is day-granular — it cannot express "the last
+  15 minutes".** The vault's Recent-mail window looked like something to push
+  down to the server (`client.fetch({ since: fifteenMinutesAgo })`), but
+  `SINCE` compares dates with the time discarded, so that query returns
+  everything that arrived today — on a busy mailbox, hundreds of messages,
+  each then fetched and MIME-parsed. `app/src/lib/mailbox.ts` instead takes
+  the last 20 messages by *sequence number* (`${first}:*`) and applies the
+  real cutoff in memory in `toRecentMessages`, which is also what makes the
+  window unit-testable without a mailbox. Don't assume an IMAP search key has
+  the granularity its name suggests.
+- **Eta's `<%= %>` renders `null` as the literal string "null".** Not empty —
+  the four characters. Harmless in a `<p>` you've already guarded with an
+  `if`, but `value="<%= it.subscription.accountEmail %>"` on an edit form puts
+  the word "null" in the input, and saving the form then stores it. This is
+  why `event-input.ts` has an all-strings `FormValues` type at all; the
+  subscription detail route does the same with a `values` object
+  (`?? ""` per field) rather than handing the raw doc to the form. Confirmed
+  with `eta.renderString('[<%= it.x %>]', { x: null })` → `"[null]"`.
+- **A digit-boundary guard like `(?<!\d)(\d{4,8})(?!\d)` still matches
+  inside an alphanumeric token.** `findCode` in `app/src/lib/mailbox.ts`
+  lifts a likely one-time code out of an email, and this pattern happily
+  returned `12345` from `ref ab12345cd` or `AB12345` from an order
+  confirmation — the lookarounds only reject adjacent *digits*, and a letter
+  isn't a digit. Fix is to exclude both: `(?<![\p{L}\d])(\d{4,8})(?![\p{L}\d])`.
+  Worth assuming any "standalone number" regex needs the letter case spelled
+  out too. Caught only because the test asserting it was *named*
+  "ignores digits embedded in a longer token" while asserting the opposite —
+  a test name that contradicts its assertion is worth re-reading as a bug
+  report about the code, not just the name.
 
 - **An apostrophe inside a JavaScript comment in an Eta `<% %>` block
   silently swallows the rest of the template.** Eta skips delimiters that
@@ -218,6 +247,22 @@ don't rewrite — newest entry last in each section.
   inside template tags. This also showed why rendering a touched template
   once is worth it: `tsc` and the unit tests both passed with the template
   completely broken, because nothing in the test suite renders a view.
+- **"Standalone digit run" has no useful definition in an email, and the
+  `findCode` heuristic above is now deleted.** The letter-and-digit boundary
+  fix landed, the tests passed, and it still produced a confident wrong
+  answer on the first two real Netflix mails: `7700` from
+  `Call 1-844-569-7700`, and `4211` from a UUID in
+  `help.netflix.com/help?g=4cd44ecb-4211-405b-…`. A hyphen, `=`, `/` and `.`
+  are all boundaries, and a phone number and a UUID are *made* of
+  digit-runs separated by exactly those — the zip code in the same footer
+  was next. Two lessons worth more than the regex: the mitigation
+  ("the snippet is shown beside it, so a wrong guess is obvious") was
+  checkable and false — both matches sat ~1500 characters past the end of a
+  180-character snippet — so **state a mitigation in terms a test can
+  reach**; and every unit test fed the function a sentence containing only
+  the code, never a signature block, which is how a heuristic passes nine
+  tests and fails on message one. Reach for real inputs early when the thing
+  under test is a guess about human text.
 
 ## Decisions
 
@@ -415,6 +460,54 @@ don't rewrite — newest entry last in each section.
   them, which is one copy too many. Note `isAdmin` there is the *effective*
   role and `canImpersonate` the real one — they deliberately disagree while
   impersonating.
+- Subscription passwords live in **Secret Manager, never Firestore** — the
+  doc carries only a `hasPassword` flag, and the secret id is *derived* from
+  the doc id (`sub-{docId}`) rather than stored, so there's no second name to
+  drift. `hasPassword` is flipped only after a version really lands, so the
+  vault can't advertise a password it can't produce. Reached over the REST
+  API with `google-auth-library` (already a dependency, same as
+  `iap-access.ts`) rather than adding the gRPC
+  `@google-cloud/secret-manager`. See ADR 0007, which also covers why Gmail
+  IMAP + an app password beat the Gmail API here (`gmail.readonly` is a
+  *restricted* scope needing a CASA assessment to publish; an unpublished
+  app's refresh tokens expire every 7 days).
+- The vault **filters by viewer in memory** rather than querying
+  `where("memberEmails", "array-contains", email)`, because combining that
+  with `orderBy("name")` needs a composite index — the same trade
+  `events-repo.ts`'s `listInRange` already makes. Nothing in a subscription
+  doc is secret (the password is in Secret Manager), so reading them all
+  inside the server leaks nothing. Mind the `orderBy` pitfall above while
+  doing it: every write must set `name`, or the doc vanishes from the list.
+- **Revealing a password is a plain `POST` that re-renders the page**, not a
+  `fetch`/JSON endpoint like `GET /events/:id/card`. Far less code, and it
+  works with JavaScript off — the only JS involved is the countdown that
+  removes the value again. Responses carrying a password or mailbox content
+  set `Cache-Control: no-store`. Note what this does *not* add: no POST in
+  this app has a CSRF token, and a forged reveal POST can't be read
+  cross-origin, so it could only pollute the audit log — adding CSRF is a
+  whole-app change, not part of this feature.
+- A subscription that can't be seen by the viewer **404s rather than 403s**,
+  so the vault never confirms to someone that a subscription exists when they
+  have no access to it. `/family` does the opposite (403 with an explanation)
+  because there the resource's existence isn't the secret.
+- Which secret backend is live is keyed off **`FIRESTORE_EMULATOR_HOST`**,
+  not a new env var: `dev-local.sh` (emulator, throwaway project id) gets an
+  in-process `Map` so the password flow stays clickable with no GCP behind
+  it, and `dev-local-real.sh` reaches the real store through the developer's
+  ADC. Deliberately *not* the silent no-op `iap-access.ts` uses — a password
+  feature that quietly does nothing is worse than one that is visibly fake,
+  so the fake backend actually stores and returns values and warns once at
+  first use. Consequence worth remembering: a password saved under
+  `dev-local-real.sh` is the real one.
+- The vault's **audit trail follows the real Google account, not an
+  impersonated one** (`realEmail(req)` from `middleware/impersonation.js`),
+  while access checks follow the impersonated one. Everything else in the
+  app, `createdBy` included, attributes to whoever is being viewed as — that
+  is the point of view-as — but a `reveals` row saying "Mum got the
+  password" when an admin did, viewing as Mum, is a false entry in the one
+  record the vault's "take it without asking, but it's on the record"
+  bargain rests on. The two identities disagreeing on purpose is worth a
+  comment wherever it happens.
 
 ## Guidelines
 
@@ -457,3 +550,100 @@ don't rewrite — newest entry last in each section.
   has returned true, so confirming in both places prompts twice. The delete
   form in `_event-card.eta` works this way — guarded on the full page,
   guarded once in the modal.
+- Secret Manager keeps every version of a secret, so "keep the old
+  passwords" needs no storage of its own — but it records only *when* a
+  version landed, never *who* asked for it. The vault's
+  `subscriptions/{id}/passwords/{version}` docs are that missing half, and
+  doubling as the list the history page renders is what keeps the app off
+  `secretmanager.versions.list` (so the custom role in `secrets.tf` didn't
+  have to grow). It also means a version is only readable through the app if
+  the app recorded it: `parsePasswordVersion` checks a submitted version
+  against that history before it reaches a resource path.
+- `addVersion` returns the new version as a full resource name
+  (`projects/p/secrets/s/versions/4`) and the last segment is the id the
+  rest of the API takes. Versions are numbered from **1**, so the in-memory
+  dev backend's array index won't do as a stand-in.
+- Accessing a *disabled or destroyed* secret version returns **400
+  FAILED_PRECONDITION**, not 404. `secret-store.ts` maps both to `null`,
+  since to a reader "destroyed" and "not there" are the same answer — only
+  a genuinely unexpected status should propagate.
+- `.card a` in `layout.eta` styles a card's link as **bold ink-coloured text
+  with no underline**, which on the vault list read as a heading rather than
+  a control — nobody could tell the name was what you clicked. The fix is
+  the `.person-card` pattern from the tree: make the whole card the `<a>`,
+  so the hit target is the card and the hover lift says it opens. If you add
+  a list of cards, assume a bare `.card a` looks inert and give it an
+  affordance (`.sub-card`, a `.card-chev`, a hover state). `accounts.eta`
+  and `admin-feedback.eta` still have the plain form.
+- Eta 3 has **no comment tag**: `<%# ... %>` compiles the `#` into the
+  generated function and throws "Bad template syntax" at render, which
+  typecheck and the test suite won't catch because no test renders every
+  view. Use `<% /* ... */ %>` if a template really needs a note — though the
+  views here carry none, and the reasoning lives next to the CSS or in the
+  route instead.
+- The vault's mail read is now **scoped by sender, not by a clock** (ADR
+  0007), which reverses the `SINCE` note above: with a 7-day window, `SINCE`
+  being day-granular costs nothing, so the search really is pushed down to
+  the server as `FROM <mailFrom> SINCE <date>`. The earlier
+  sequence-number-tail approach is gone. The exact cutoff is still applied
+  in memory, because `SINCE` ignores the time of day and returns up to a day
+  more than asked — and so is the sender match, since it is the whole
+  privacy boundary and must not depend on a server's reading of the query.
+- ImapFlow's `fetch()` accepts a `SearchObject` as its range, so
+  `fetch({from, since}, ...)` works in one call — **don't**. Search first,
+  then fetch the UIDs it returns: that's the only way to cap the work, and a
+  sender with 300 messages in the window would otherwise all be fetched and
+  MIME-parsed before anything could trim them. UIDs ascend with arrival, so
+  `uids.slice(-20)` is the newest 20. Note `search()` returns
+  `number[] | false | undefined`, so `Array.isArray` before using it.
+- Anything that reaches an **IMAP command** needs shape validation like
+  anything reaching an HTML attribute: `mailFrom` is checked against
+  `/^[a-z0-9._%+-]+(?:@[a-z0-9._-]+)?$/` and rejected if it doesn't match,
+  rather than escaped, because a quote or a CRLF in a SEARCH argument is the
+  injection. Same rule as the `#rrggbb` and `http(s)` link checks — the list
+  of "untrusted input that must be validated for shape" now has three
+  entries, in three different sinks.
+- When a feature's job is "let a person find something in an email", render
+  the email and stop. The vault's mail list shows sender, subject and age,
+  and the body opens in a `<dialog>` on click — no snippet, no extraction,
+  nothing to be wrong about. It is less code than the snippet-plus-code
+  version it replaced (two functions and a constant deleted, one added) and
+  it reads better, because the reader has the whole message. The privacy
+  boundary was never the truncation; it is the sender filter, which is
+  unchanged. Note the body is written into the page by Eta's `<%= %>` and
+  **never** through `JSON.stringify` into a `<script>` the way
+  `calendar.eta` passes `returnTo`: a mail body is the one string in this
+  app authored by an outsider, and a literal `</script>` inside it would end
+  the block. HTML-escaping in an HTML context is the safe sink; keep it
+  there.
+- A `<button>` reusing the `.card` look needs the base `button` rule undone
+  explicitly — `margin-top`, the pill `border-radius`, the accent fill,
+  `font-weight: 800` and centred text all inherit and all look wrong. See
+  `.mail-card` in `layout.eta`, which joins `.sub-card`'s hover-lift
+  selectors rather than inventing a second affordance idiom.
+- Linkifying text you did not write is three small decisions, not one regex.
+  `toBodyParts` in `app/src/lib/mailbox.ts`: (1) **trailing punctuation goes
+  back in the text** — "Verify at https://x.test/a." must not link to a URL
+  ending in a full stop, and a closing bracket counts only if the URL opened
+  one; (2) **the label is host plus path, never the whole URL** — the
+  tracking query on a real Netflix link runs to 446 characters and buries
+  the host, which is the one part worth reading before pressing, with the
+  full URL kept in `href` and `title`; (3) **match case-insensitively** —
+  the first version missed a body that wrote `HTTP://`, rendering it as dead
+  text. Note `new URL` punycodes a non-ASCII host, and the label deliberately
+  keeps that form: an IDN shown in its own script is how a lookalike domain
+  passes for the real one.
+- The test worth writing for any splitter that sits in front of a reader is
+  that **the parts, concatenated, are the input** — see "loses no character
+  of the body outside the links themselves". It catches the whole class of
+  off-by-one slicing bug that would silently rewrite somebody's email, which
+  per-case assertions miss. The one documented exception is the punycoded
+  href, and it has its own test saying so.
+- Checking that markup can't escape a template means rendering **hostile
+  input**, not reading the code: feeding a mail body of
+  `<img src=x onerror=alert(1)>` and `"><a href=javascript:alert(2)>` through
+  the real `render()` showed every character escaped. Watch what you grep
+  for afterwards, though — "onerror=alert" is *present* in that page, inside
+  `&lt;img src=x onerror=alert(1)&gt;`, and is inert. Assert on the escaped
+  form or read the fragment; a naive substring check reports a false alarm.
+
