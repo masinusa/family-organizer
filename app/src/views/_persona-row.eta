@@ -1,11 +1,13 @@
 <%
   /* Face, name and the subtitle line (account, "Not signed in", "Guest").
+     `detail` replaces that line where the row is about an action rather
+     than the person (the vault history); `subtitle: false` drops it.
      Shared by the picker, the event roster and the accounts list. */
 %>
 <span class="prow">
   <%~ include("./_persona-avatar", { persona: it.persona, size: it.size || "sm" }) %>
   <span class="prow-text">
     <strong><%= it.persona.name %></strong>
-    <% if (it.subtitle !== false) { %><small><%= it.persona.subtitle %></small><% } %>
+    <% if (it.subtitle !== false) { %><small><%= it.detail || it.persona.subtitle %></small><% } %>
   </span>
 </span>

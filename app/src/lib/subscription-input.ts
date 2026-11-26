@@ -71,23 +71,23 @@ export function parseSubscriptionInput(
 }
 
 /**
- * The access list comes from a roster of checkboxes named `member:<email>`,
- * so it is only ever read against the known member list — never by scanning
- * submitted field names, same rule the event roster follows.
- *
- * The flat `fields["member:..."]` lookup relies on app.ts parsing bodies with
- * `express.urlencoded({ extended: false })`: under `extended: true`, qs would
- * read the dots in an email address as nested paths and `member:a.b@c.com`
- * would arrive as an object tree instead of one key.
+ * The access list comes from the shared persona picker
+ * (views/_persona-picker.eta): `members` checkboxes whose values are
+ * emails, so it arrives as an array or, with one ticked, a bare string.
+ * Only addresses on the known member list are kept, in that list's order —
+ * a hand-posted address for somebody who can't sign in is dropped, never
+ * stored.
  */
 export function parseMemberEmails(
   body: Record<string, unknown> | null | undefined,
   knownEmails: string[],
 ): string[] {
-  const fields = body ?? {};
-  return knownEmails
-    .map((email) => normalizeEmail(email))
-    .filter((email) => Boolean(fields[`member:${email}`]));
+  const raw = (body ?? {}).members;
+  const submitted = (Array.isArray(raw) ? raw : [raw])
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => normalizeEmail(value));
+  const chosen = new Set(submitted);
+  return knownEmails.map((email) => normalizeEmail(email)).filter((email) => chosen.has(email));
 }
 
 /**

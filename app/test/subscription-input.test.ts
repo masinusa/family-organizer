@@ -65,24 +65,28 @@ test("parseSubscriptionInput rejects a javascript: link", () => {
   });
 });
 
-test("parseMemberEmails only reads checkboxes for known members", () => {
-  const body = {
-    "member:dad@example.com": "on",
-    "member:intruder@example.com": "on",
-  };
+test("parseMemberEmails keeps only known members", () => {
+  const body = { members: ["dad@example.com", "intruder@example.com"] };
   assert.deepEqual(parseMemberEmails(body, ["dad@example.com", "mum@example.com"]), [
     "dad@example.com",
   ]);
 });
 
-test("parseMemberEmails normalizes the known member list it keys on", () => {
-  assert.deepEqual(parseMemberEmails({ "member:dad@example.com": "on" }, ["Dad@Example.COM"]), [
+test("parseMemberEmails accepts a single ticked box as a bare string", () => {
+  assert.deepEqual(parseMemberEmails({ members: "mum@example.com" }, ["dad@example.com", "mum@example.com"]), [
+    "mum@example.com",
+  ]);
+});
+
+test("parseMemberEmails normalizes both sides of the match", () => {
+  assert.deepEqual(parseMemberEmails({ members: " DAD@example.com" }, ["Dad@Example.COM"]), [
     "dad@example.com",
   ]);
 });
 
 test("parseMemberEmails returns nothing when every box is unticked", () => {
   assert.deepEqual(parseMemberEmails({}, ["dad@example.com"]), []);
+  assert.deepEqual(parseMemberEmails(null, ["dad@example.com"]), []);
 });
 
 test("parsePasswordVersion treats a missing version as the current password", () => {

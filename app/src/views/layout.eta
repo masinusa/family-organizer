@@ -1146,7 +1146,7 @@
       .reveal .hint { margin-top: 0.6rem; }
       /* The history rows carry a per-version "get" button, pushed to the
          far edge so the dates still read as a column. */
-      .vault-history-row .roster-name { flex: 1 1 auto; }
+      .vault-history-row .prow { flex: 1 1 auto; }
       .vault-history-row form { margin: 0 0 0 auto; flex-shrink: 0; }
       .vault-history-row .new-btn { margin: 0; padding: 0.3rem 0.7rem; font-size: 0.78rem; }
       /* A mail card is a <button>, so the base button's pill shape and

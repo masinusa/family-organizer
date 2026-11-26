@@ -27,10 +27,7 @@
 <% } else { %>
 <ul class="roster">
   <% it.members.forEach(function (member) { %>
-  <li class="roster-row">
-    <span class="av" style="background: <%= member.color %>; color: <%= member.ink %>"><%= member.initial %></span>
-    <span class="roster-name"><strong><%= member.label %></strong><small><%= member.sub %></small></span>
-  </li>
+  <li class="roster-row"><%~ include("./_persona-row", { persona: member }) %></li>
   <% }) %>
 </ul>
 <% } %>
@@ -72,7 +69,7 @@
   </p>
   <code class="reveal-value" id="reveal-value"><%= it.password %></code>
   <% if (it.revealed) { %>
-  <p class="hint">Saved by <%= it.revealed.avatar.label %> on <%= it.revealed.at.toLocaleString() %>.</p>
+  <p class="hint">Saved by <%~ include("./_persona-chip", { persona: it.revealed.persona }) %> on <%= it.revealed.at.toLocaleString() %>.</p>
   <% } %>
   <div class="reveal-row">
     <button class="new-btn" type="button" id="reveal-copy">Copy</button>
@@ -137,11 +134,11 @@
 <ul class="roster">
   <% it.passwordHistory.forEach(function (entry) { %>
   <li class="roster-row vault-history-row">
-    <span class="av av-xs" style="background: <%= entry.avatar.color %>; color: <%= entry.avatar.ink %>"><%= entry.avatar.initial %></span>
-    <span class="roster-name">
-      <strong><%= entry.avatar.label %></strong>
-      <small><%= entry.at.toLocaleString() %><%= entry.current ? " · current" : "" %></small>
-    </span>
+    <%~ include("./_persona-row", {
+      persona: entry.persona,
+      size: "xs",
+      detail: entry.at.toLocaleString() + (entry.current ? " · current" : ""),
+    }) %>
     <form method="post" action="/subscriptions/<%= it.subscription.id %>/password/reveal">
       <input type="hidden" name="version" value="<%= entry.version %>" />
       <button class="new-btn btn-quiet" type="submit">
@@ -228,11 +225,11 @@
 <ul class="roster">
   <% it.reveals.forEach(function (reveal) { %>
   <li class="roster-row">
-    <span class="av av-xs" style="background: <%= reveal.avatar.color %>; color: <%= reveal.avatar.ink %>"><%= reveal.avatar.initial %></span>
-    <span class="roster-name">
-      <strong><%= reveal.avatar.label %></strong>
-      <small><%= reveal.label %> &middot; <%= reveal.at.toLocaleString() %></small>
-    </span>
+    <%~ include("./_persona-row", {
+      persona: reveal.persona,
+      size: "xs",
+      detail: reveal.label + " · " + reveal.at.toLocaleString(),
+    }) %>
   </li>
   <% }) %>
 </ul>
@@ -289,17 +286,14 @@
   </summary>
   <div class="sheet-body">
     <form method="post" action="/subscriptions/<%= it.subscription.id %>/access">
-      <ul class="roster">
-        <% it.roster.forEach(function (row) { %>
-        <li class="roster-row">
-          <label class="roster-who">
-            <input class="involve" type="checkbox" name="member:<%= row.email %>" <%= row.onList ? "checked" : "" %> />
-            <span class="av" style="background: <%= row.avatar.color %>; color: <%= row.avatar.ink %>"><%= row.avatar.initial %></span>
-            <span class="roster-name"><strong><%= row.avatar.label %></strong><small><%= row.email %></small></span>
-          </label>
-        </li>
-        <% }) %>
-      </ul>
+      <%~ include("./_persona-picker", {
+        name: "members",
+        legend: "Who can get in",
+        personas: it.roster,
+        mode: "multi",
+        value: "email",
+        selected: it.subscription.memberEmails,
+      }) %>
       <button type="submit">Save access</button>
     </form>
   </div>

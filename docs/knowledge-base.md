@@ -552,6 +552,14 @@ don't rewrite — newest entry last in each section.
   gets them too. The server still enforces the cap (`TOO_MANY_PARENTS_ERROR`).
   The event roster reuses `_persona-row` rather than the picker, because
   each row also carries an RSVP control.
+- The subscriptions vault draws people as personas too. Its access list,
+  password history and "Recently viewed" log are `_persona-row`s, and
+  admins edit access with the shared picker. Access now posts as `members`
+  checkbox values instead of one `member:<email>` field per person.
+  `parseMemberEmails` still keeps only addresses on the active-member list,
+  so the rule against storing a hand-posted address is unchanged. The audit
+  log keeps recording `realEmail(req)`. A persona only changes how that
+  stored email is drawn.
 
 ## Guidelines
 

@@ -1,7 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { chrome } from "../lib/chrome.js";
 import { render } from "../lib/render.js";
-import { avatarForEmail } from "../lib/people.js";
 import * as subscriptionsRepo from "../lib/subscriptions-repo.js";
 import { canView, visibleTo, type Viewer } from "../lib/subscription-access.js";
 import {
@@ -11,7 +10,6 @@ import {
 } from "../lib/subscription-input.js";
 import { LATEST_VERSION, secretStore, subscriptionSecretId } from "../lib/secret-store.js";
 import { isFamilyMailbox, mailbox, WINDOW_DAYS } from "../lib/mailbox.js";
-import * as usersRepo from "../lib/users-repo.js";
 import { isAdmin, requireAdmin } from "../middleware/access-control.js";
 import { realEmail } from "../middleware/impersonation.js";
 import type { MailMessage } from "../lib/mailbox.js";
@@ -69,7 +67,7 @@ async function renderList(req: Request): Promise<string> {
   const all = await subscriptionsRepo.listSubscriptions();
   const subscriptions = visibleTo(viewer(req), all).map((subscription) => ({
     ...subscription,
-    members: subscription.memberEmails.map(avatarForEmail),
+    members: subscription.memberEmails.map((email) => req.personas!.forEmail(email)),
   }));
 
   return render("subscriptions", {
@@ -91,12 +89,11 @@ async function renderDetail(
   if (!subscription) return null;
   if (!canView(viewer(req), subscription)) return null;
 
-  const [members, reveals, passwordVersions] = await Promise.all([
-    usersRepo.listUsers(),
+  const personas = req.personas!;
+  const [reveals, passwordVersions] = await Promise.all([
     subscriptionsRepo.listReveals(id),
     subscriptionsRepo.listPasswordVersions(id),
   ]);
-  const onList = new Set(subscription.memberEmails);
 
   // listPasswordVersions is newest first, so the head is the one "Get
   // password" hands over — which is what labels a reveal of the current
@@ -120,16 +117,12 @@ async function renderDetail(
       notes: subscription.notes ?? "",
       mailFrom: subscription.mailFrom ?? "",
     },
-    members: subscription.memberEmails.map(avatarForEmail),
-    // The admin access roster: every family member, flagged if they're on.
-    roster: members.map((member) => ({
-      email: member.email,
-      avatar: avatarForEmail(member.email),
-      onList: onList.has(member.email),
-    })),
+    members: subscription.memberEmails.map((email) => personas.forEmail(email)),
+    // The admin access picker: everyone who can sign in, ticked if they're on.
+    roster: personas.active(),
     reveals: reveals.map((reveal) => ({
       ...reveal,
-      avatar: avatarForEmail(reveal.email),
+      persona: personas.forEmail(reveal.email),
       label: revealLabel(reveal, current?.version ?? null),
     })),
     // Every password ever saved, newest first — nothing is replaced, so an
@@ -137,7 +130,7 @@ async function renderDetail(
     // new one.
     passwordHistory: passwordVersions.map((entry) => ({
       ...entry,
-      avatar: avatarForEmail(entry.setBy),
+      persona: personas.forEmail(entry.setBy),
       current: entry.version === current?.version,
     })),
     // A stored password with no recorded save: the only way to reach this is
@@ -157,7 +150,7 @@ async function renderDetail(
     error: notice.error ?? null,
     warning: notice.warning ?? null,
     password: notice.password ?? null,
-    revealed: revealed ? { ...revealed, avatar: avatarForEmail(revealed.setBy) } : null,
+    revealed: revealed ? { ...revealed, persona: personas.forEmail(revealed.setBy) } : null,
     revealedIsCurrent: notice.passwordVersion == null || notice.passwordVersion === current?.version,
     saved: notice.saved === true,
     mail: notice.mail ?? null,
@@ -252,10 +245,9 @@ subscriptionsRouter.post("/subscriptions/:id", requireAdmin, async (req, res, ne
 subscriptionsRouter.post("/subscriptions/:id/access", requireAdmin, async (req, res, next) => {
   try {
     if (!(await loadForWrite(req, res))) return;
-    const members = await usersRepo.listUsers();
     const emails = parseMemberEmails(
       req.body,
-      members.map((member) => member.email),
+      req.personas!.active().map((persona) => persona.email!),
     );
     await subscriptionsRepo.setMemberEmails(req.params.id, emails);
     res.redirect(`/subscriptions/${req.params.id}`);

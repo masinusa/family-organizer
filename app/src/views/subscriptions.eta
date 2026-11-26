@@ -36,7 +36,7 @@
     <% if (subscription.members.length > 0) { %>
     <span class="stack" aria-label="Who has access">
       <% subscription.members.forEach(function (member) { %>
-      <span class="av av-xs" style="background: <%= member.color %>; color: <%= member.ink %>" title="<%= member.label %>"><%= member.initial %></span>
+      <%~ include("./_persona-avatar", { persona: member, size: "xs" }) %>
       <% }) %>
     </span>
     <% } else { %>
