@@ -1,7 +1,14 @@
 /**
- * Pure presentation helpers for a person's card — no Firestore, same
- * separation as calendar-grid.ts, so all of this is unit-testable.
+ * The one way a person is represented anywhere on the site. Pure — no
+ * Firestore, same separation as calendar-grid.ts — so the join and every
+ * presentation rule are unit-testable. The middleware in
+ * middleware/personas.ts loads the two collections once per request and
+ * hands routes a PersonaDirectory; templates draw a Persona with the
+ * views/_persona-*.eta partials and nothing else.
  */
+import { normalizeEmail } from "./email.js";
+import type { Attendee, PersonDoc, UserDoc, UserRole } from "./types.js";
+
 
 export interface PersonaColor {
   key: string;
@@ -61,6 +68,160 @@ export function colorFor(person: { name: string; color: string | null }): Person
   const chosen = PERSONA_COLORS.find((c) => c.key === person.color);
   if (chosen) return chosen;
   return PERSONA_COLORS[hashString(person.name) % PERSONA_COLORS.length]!;
+}
+
+/**
+ * For an email nobody on the tree has any more (an old attendee or event
+ * creator whose access was removed and email changed). Deliberately grey:
+ * it must not borrow somebody else's colour.
+ */
+export const UNKNOWN_COLOR: PersonaColor = {
+  key: "unknown",
+  label: "Unknown",
+  tint: "#e7e5de",
+  ink: "#5f6157",
+};
+
+export type PersonaKind = "person" | "guest" | "unknown";
+
+/**
+ * A person as the site shows them, resolved once: tree name, account (if
+ * any), initials and colour. Plain data rather than a class so an Eta
+ * template can read every field directly.
+ */
+export interface Persona {
+  /** Stable and unique per persona — the person id, or a prefixed name/email. */
+  key: string;
+  kind: PersonaKind;
+  /** The `people` doc, for a person on the tree; null for a guest or unknown. */
+  personId: string | null;
+  name: string;
+  email: string | null;
+  /** Non-null exactly when they can sign in — what "active" means. */
+  role: UserRole | null;
+  initials: string;
+  color: PersonaColor;
+  /** The second line under the name: account, "Not signed in", "Guest"… */
+  subtitle: string;
+}
+
+export const ORPHAN_ACCOUNT_ERROR =
+  'has an account but nobody on the tree — run "npm run migrate:personas".';
+
+function personPersona(person: PersonDoc, account: UserDoc | null): Persona {
+  return {
+    key: person.id,
+    kind: "person",
+    personId: person.id,
+    name: person.name,
+    email: person.email ? normalizeEmail(person.email) : null,
+    role: account?.role ?? null,
+    initials: initialsFor(person.name),
+    color: colorFor(person),
+    subtitle: account ? `${account.email} · ${account.role}` : "Not signed in",
+  };
+}
+
+/** Someone on one event only — no account, not on the tree. */
+export function guestPersona(name: string): Persona {
+  return {
+    key: `guest:${name.toLowerCase()}`,
+    kind: "guest",
+    personId: null,
+    name,
+    email: null,
+    role: null,
+    initials: initialsFor(name),
+    color: colorFor({ name, color: null }),
+    subtitle: "Guest",
+  };
+}
+
+function unknownPersona(email: string): Persona {
+  const key = normalizeEmail(email);
+  return {
+    key: `email:${key}`,
+    kind: "unknown",
+    personId: null,
+    name: key,
+    email: key,
+    role: null,
+    initials: initialsFor(key),
+    color: UNKNOWN_COLOR,
+    subtitle: "No longer on the tree",
+  };
+}
+
+function byName(a: Persona, b: Persona): number {
+  return a.name.localeCompare(b.name);
+}
+
+/**
+ * The `people`/`users` join, done once. There's no link field between
+ * the collections: a person's email IS the join key (normalized on both
+ * sides). Every account must belong to somebody on the tree — an account
+ * that doesn't is a bug the routes no longer allow, so it throws rather
+ * than inventing a name for it.
+ */
+export class PersonaDirectory {
+  private readonly everyone: Persona[];
+  private readonly ids = new Map<string, Persona>();
+  private readonly emails = new Map<string, Persona>();
+
+  /**
+   * The docs it was built from, for what needs more than a Persona — the
+   * tree layout, birthdays, relationship rules. Drawing anyone goes
+   * through a Persona, never through these.
+   */
+  readonly people: PersonDoc[];
+
+  constructor(people: PersonDoc[], users: UserDoc[]) {
+    this.people = people;
+    const accountByEmail = new Map(users.map((u) => [normalizeEmail(u.email), u]));
+    this.everyone = people
+      .map((person) =>
+        personPersona(person, person.email ? (accountByEmail.get(normalizeEmail(person.email)) ?? null) : null),
+      )
+      .sort(byName);
+
+    for (const persona of this.everyone) {
+      this.ids.set(persona.personId!, persona);
+      // First claim wins; the email route refuses to create a second one.
+      if (persona.email && !this.emails.has(persona.email)) this.emails.set(persona.email, persona);
+    }
+
+    for (const email of accountByEmail.keys()) {
+      if (!this.emails.has(email)) throw new Error(`${email} ${ORPHAN_ACCOUNT_ERROR}`);
+    }
+  }
+
+  /** Everyone on the tree, by name. */
+  all(): Persona[] {
+    return this.everyone;
+  }
+
+  /** Everyone who can sign in, by name. */
+  active(): Persona[] {
+    return this.everyone.filter((p) => p.role !== null);
+  }
+
+  byId(id: string): Persona | null {
+    return this.ids.get(id) ?? null;
+  }
+
+  byEmail(email: string): Persona | null {
+    return this.emails.get(normalizeEmail(email)) ?? null;
+  }
+
+  /** For a stored email reference, which may outlive the person it named. */
+  forEmail(email: string): Persona {
+    return this.byEmail(email) ?? unknownPersona(email);
+  }
+
+  forAttendee(attendee: Attendee): Persona {
+    if (attendee.email) return this.forEmail(attendee.email);
+    return guestPersona(attendee.name!);
+  }
 }
 
 /** "Mar 4" — the day only; the year is tracked and shown separately. */

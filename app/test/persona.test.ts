@@ -6,9 +6,14 @@ import {
   formatBirthday,
   initialsFor,
   isValidBirthYear,
+  guestPersona,
   MIN_BIRTH_YEAR,
+  ORPHAN_ACCOUNT_ERROR,
   PERSONA_COLORS,
+  PersonaDirectory,
+  UNKNOWN_COLOR,
 } from "../src/lib/persona.js";
+import type { PersonDoc, UserDoc } from "../src/lib/types.js";
 
 test("initials take the first and last name parts", () => {
   assert.equal(initialsFor("Willa Spicer"), "WS");
@@ -88,4 +93,102 @@ test("an implausible or malformed birth year is rejected", () => {
   assert.equal(isValidBirthYear(19, now), false, "a mistyped two-digit year");
   assert.equal(isValidBirthYear(1952.5, now), false);
   assert.equal(isValidBirthYear(Number.NaN, now), false);
+});
+
+/* ---------------------------- directory ---------------------------- */
+
+function makePerson(overrides: Partial<PersonDoc> = {}): PersonDoc {
+  return {
+    id: "person",
+    name: "Person",
+    email: null,
+    blurb: null,
+    birthMonth: null,
+    birthDay: null,
+    birthYear: null,
+    color: null,
+    parentIds: [],
+    connectionIds: [],
+    createdAt: new Date(2026, 9, 1),
+    updatedAt: new Date(2026, 9, 1),
+    ...overrides,
+  };
+}
+
+function makeUser(overrides: Partial<UserDoc> = {}): UserDoc {
+  return {
+    email: "someone@example.com",
+    role: "member",
+    createdAt: new Date(2026, 9, 1),
+    updatedAt: new Date(2026, 9, 1),
+    ...overrides,
+  };
+}
+
+test("a person is joined to the account sharing their email", () => {
+  const directory = new PersonaDirectory(
+    [makePerson({ id: "p1", name: "Ada Spicer", email: "ada@example.com", color: "sky" })],
+    [makeUser({ email: "ada@example.com", role: "admin" })],
+  );
+  const ada = directory.byId("p1")!;
+  assert.equal(ada.kind, "person");
+  assert.equal(ada.role, "admin");
+  assert.equal(ada.initials, "AS");
+  assert.equal(ada.color.key, "sky", "the chosen colour is used everywhere, not just on the tree");
+  assert.equal(ada.subtitle, "ada@example.com · admin");
+  assert.equal(directory.byEmail("ada@example.com"), ada);
+});
+
+test("the join ignores casing and surrounding whitespace", () => {
+  // users doc ids are normalized but PersonDoc.email historically wasn't,
+  // so the join has to normalize both sides or silently miss.
+  const directory = new PersonaDirectory(
+    [makePerson({ id: "p1", email: "  Ada@Example.COM " })],
+    [makeUser({ email: "ada@example.com" })],
+  );
+  assert.equal(directory.byId("p1")!.role, "member");
+  assert.equal(directory.byEmail("ADA@example.com ")?.personId, "p1");
+});
+
+test("an account with nobody on the tree is refused", () => {
+  assert.throws(
+    () => new PersonaDirectory([], [makeUser({ email: "ghost@example.com" })]),
+    (err: Error) => err.message === `ghost@example.com ${ORPHAN_ACCOUNT_ERROR}`,
+  );
+});
+
+test("active() is everyone who can sign in, by name", () => {
+  const directory = new PersonaDirectory(
+    [
+      makePerson({ id: "p1", name: "Zed", email: "zed@example.com" }),
+      makePerson({ id: "p2", name: "Nana", email: null }),
+      makePerson({ id: "p3", name: "Ada", email: "ada@example.com" }),
+      makePerson({ id: "p4", name: "Bob", email: "bob@example.com" }),
+    ],
+    [makeUser({ email: "zed@example.com" }), makeUser({ email: "ada@example.com" })],
+  );
+  assert.deepEqual(directory.all().map((p) => p.name), ["Ada", "Bob", "Nana", "Zed"]);
+  assert.deepEqual(directory.active().map((p) => p.name), ["Ada", "Zed"]);
+  assert.equal(directory.byId("p4")!.subtitle, "Not signed in");
+});
+
+test("an email nobody has any more resolves to an explicit unknown persona", () => {
+  const directory = new PersonaDirectory([], []);
+  const unknown = directory.forEmail("Gone@Example.com");
+  assert.equal(unknown.kind, "unknown");
+  assert.equal(unknown.name, "gone@example.com", "shown as the address, never a guessed name");
+  assert.equal(unknown.color, UNKNOWN_COLOR);
+});
+
+test("attendees resolve to members or guests", () => {
+  const directory = new PersonaDirectory(
+    [makePerson({ id: "p1", name: "Ada Spicer", email: "ada@example.com" })],
+    [makeUser({ email: "ada@example.com" })],
+  );
+  assert.equal(directory.forAttendee({ email: "ada@example.com", name: null, status: "yes" }).personId, "p1");
+  const guest = directory.forAttendee({ email: null, name: "Aunt Jo", status: "invited" });
+  assert.equal(guest.kind, "guest");
+  assert.equal(guest.initials, "AJ");
+  assert.ok(PERSONA_COLORS.includes(guest.color), "guests share the persona palette");
+  assert.equal(guestPersona("Aunt Jo").color.key, guest.color.key, "and keep their colour");
 });

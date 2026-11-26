@@ -9,9 +9,7 @@
 <% } %>
 
 <div class="person-head">
-  <span class="monogram monogram-lg" style="background: <%= it.swatch.tint %>; color: <%= it.swatch.ink %>;"
-    ><%= it.initials %></span
-  >
+  <%~ include("./_persona-avatar", { persona: it.persona, size: "lg" }) %>
   <div>
     <h1><%= it.person.name %></h1>
     <% if (it.person.blurb) { %>
@@ -111,36 +109,15 @@
     </button>
   </div>
 </form>
-<form
-  method="post"
-  action="/family/<%= it.person.id %>/email"
-  class="account-form"
-  onsubmit="return confirm('Unlink this account from <%= it.person.name %>? The account keeps working — it just won\'t belong to anyone on the tree.');"
->
-  <input type="hidden" name="email" value="" />
-  <button type="submit" class="link-btn">Wrong person? Unlink this account</button>
-</form>
+<p class="who field-hint">
+  To change their email, remove their access first &mdash; every account belongs to someone on the tree.
+</p>
 
 <% } else { %>
 <p class="who">
   <%= it.person.name %> is on the tree but can't sign in yet. Linking is by email: whichever Google
   address you set here is the account they'll sign in with.
 </p>
-
-<% if (it.linkableAccounts.length > 0) { %>
-<form method="post" action="/family/<%= it.person.id %>/email" class="account-form">
-  <label>
-    Link an account that already exists
-    <select name="email">
-      <% it.linkableAccounts.forEach(function (u) { %>
-      <option value="<%= u.email %>"><%= u.email %> (<%= u.role %>)</option>
-      <% }) %>
-    </select>
-  </label>
-  <button type="submit">Link to <%= it.person.name %></button>
-</form>
-<p class="who or-divider">or</p>
-<% } %>
 
 <form method="post" action="/family/<%= it.person.id %>/email" class="account-form">
   <label>
@@ -207,11 +184,11 @@
   <% rows.forEach(function (row) { %>
   <li class="rel-row">
     <span class="rel-tag"><%= row.tag %></span>
-    <a href="/family/<%= row.person.id %>"><%= row.person.name %></a>
+    <%~ include("./_persona-chip", { persona: row.person, link: true }) %>
     <% if (row.removable) { %>
     <form method="post" action="/family/<%= it.person.id %>/relationships/remove">
       <input type="hidden" name="kind" value="<%= row.kind %>" />
-      <input type="hidden" name="otherId" value="<%= row.person.id %>" />
+      <input type="hidden" name="otherId" value="<%= row.person.personId %>" />
       <button type="submit" class="link-btn">Remove</button>
     </form>
     <% } else { %>
@@ -243,40 +220,27 @@
 
   <% if (canAddParent) { %>
   <div class="rel-fields" data-rel-kind="parent">
-    <label>
-      Their parent
-      <select name="parentIds">
-        <option value="">&mdash; choose someone &mdash;</option>
-        <% it.parentOptions.forEach(function (p) { %>
-        <option value="<%= p.id %>"><%= p.name %></option>
-        <% }) %>
-      </select>
-    </label>
-    <% if (it.person.parentIds.length === 0 && it.parentOptions.length > 1) { %>
-    <label>
-      And their other parent <span class="rel-optional">optional</span>
-      <select name="parentIds">
-        <option value="">&mdash; nobody &mdash;</option>
-        <% it.parentOptions.forEach(function (p) { %>
-        <option value="<%= p.id %>"><%= p.name %></option>
-        <% }) %>
-      </select>
-    </label>
-    <% } %>
+    <% var parentSlots = 2 - it.person.parentIds.length; %>
+    <%~ include("./_persona-picker", {
+      name: "parentIds",
+      legend: parentSlots === 2 ? "Their parents" : "Their other parent",
+      personas: it.parentOptions,
+      mode: parentSlots === 2 ? "multi" : "single",
+      value: "id",
+      max: parentSlots === 2 ? 2 : null,
+    }) %>
   </div>
   <% } %>
 
   <% if (canAddConnection) { %>
   <div class="rel-fields" data-rel-kind="connection" <%= canAddParent ? "hidden" : "" %>>
-    <label>
-      Relationship with
-      <select name="connectionId">
-        <option value="">&mdash; choose someone &mdash;</option>
-        <% it.connectionOptions.forEach(function (p) { %>
-        <option value="<%= p.id %>"><%= p.name %></option>
-        <% }) %>
-      </select>
-    </label>
+    <%~ include("./_persona-picker", {
+      name: "connectionId",
+      legend: "Relationship with",
+      personas: it.connectionOptions,
+      mode: "single",
+      value: "id",
+    }) %>
   </div>
   <% } %>
 
@@ -302,6 +266,9 @@
 </script>
 <% } %>
 
+<% if (it.account) { %>
+<p class="who field-hint">To take <%= it.person.name %> off the tree, remove their access first.</p>
+<% } else { %>
 <div class="actions">
   <form
     method="post"
@@ -311,4 +278,5 @@
     <button type="submit">Remove from tree</button>
   </form>
 </div>
+<% } %>
 <% } %>

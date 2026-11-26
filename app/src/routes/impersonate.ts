@@ -1,15 +1,14 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { normalizeEmail } from "../lib/email.js";
-import { findPersonForEmail } from "../lib/family-link.js";
-import { peopleRepo } from "../lib/people-repo.js";
 import { render } from "../lib/render.js";
-import * as usersRepo from "../lib/users-repo.js";
+import { usersRepo } from "../lib/users-repo.js";
 import {
   realAdmin,
   realEmail,
   startImpersonating,
   stopImpersonating,
 } from "../middleware/impersonation.js";
+import { loadPersonaDirectory } from "../middleware/personas.js";
 
 export const impersonateRouter = Router();
 
@@ -49,27 +48,20 @@ async function requireRealAdmin(req: Request, res: Response, next: NextFunction)
 
 /**
  * The account list as a bare fragment, fetched when the picker opens
- * rather than rendered into every page — it costs two Firestore reads and
- * only an admin ever sees it. Same pattern as GET /events/:id/card.
+ * rather than rendered into every page. Same pattern as GET
+ * /events/:id/card. Mounted ahead of requireFamilyMember (see app.ts), so
+ * req.personas isn't loaded yet and this reads its own.
  */
 impersonateRouter.get("/impersonate/picker", requireRealAdmin, async (req, res, next) => {
   try {
     const me = realEmail(req);
-    const [people, users] = await Promise.all([peopleRepo.listPeople(), usersRepo.listUsers()]);
-    const options = users
-      .filter((user) => user.email !== me)
-      .map((user) => ({
-        email: user.email,
-        role: user.role,
-        // The tree name is what makes this list readable; an account with
-        // nobody on the tree still has to be pickable, so it's optional.
-        name: findPersonForEmail(people, user.email)?.name ?? null,
-      }));
+    const personas = await loadPersonaDirectory();
+    const options = personas.active().filter((persona) => persona.email !== me);
 
     res.send(
       render("_view-as", {
         options,
-        realEmail: me,
+        realName: personas.forEmail(me).name,
         current: req.impersonator ? normalizeEmail(req.user!.email) : null,
         returnTo: safeReturnPath(req.query.return),
       }),

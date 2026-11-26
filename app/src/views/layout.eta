@@ -66,6 +66,7 @@
       }
       .topnav-links a.active { color: var(--primary); border-bottom: 2px solid var(--accent); }
       .topnav-user { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+      .topnav-user .pchip-name { font-weight: 700; }
       @media (max-width: 30rem) {
         .topnav-user { display: none; }
       }
@@ -117,7 +118,7 @@
         font-weight: 700;
         cursor: pointer;
       }
-      /* The picker is mostly a <select>; it needs the close button's
+      /* The picker is a short form; it needs the close button's
          positioning context but not the event form's height. */
       #viewas-dialog { position: relative; }
       #viewas-body h2 { padding-right: 1.5rem; }
@@ -397,20 +398,6 @@
         display: block;
       }
       .person-card.is-you { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201, 138, 44, 0.18); }
-      .monogram {
-        flex-shrink: 0;
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: var(--font-head);
-        font-weight: 800;
-        font-size: 0.9rem;
-        letter-spacing: 0.02em;
-      }
-      .monogram-lg { width: 62px; height: 62px; font-size: 1.25rem; }
       .person-meta { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
       .person-name {
         font-family: var(--font-head);
@@ -523,7 +510,6 @@
       }
       .link-state.is-linked { border-left-color: var(--primary); }
       .link-state span { color: var(--muted); }
-      .or-divider { margin: 0.9rem 0 0; font-style: italic; }
       .link-btn {
         margin-top: 0.6rem;
         padding: 0;
@@ -840,7 +826,8 @@
       .swatch-opt:has(input:checked) .dot { display: none; }
       .swatch-opt:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-      .av {
+      /* Personas: the one face, chip, row and picker — see views/_persona-*.eta. */
+      .pav {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -848,19 +835,77 @@
         width: 1.9rem;
         height: 1.9rem;
         border-radius: 50%;
-        background: var(--border);
-        color: var(--ink);
+        background: var(--pav-tint, var(--border));
+        color: var(--pav-ink, var(--ink));
         font-family: var(--font-head);
         font-weight: 800;
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
         line-height: 1;
       }
-      .av-xs { width: 1.4rem; height: 1.4rem; font-size: 0.65rem; }
-      .guest-av { background: var(--bg); color: var(--muted); border: 1px dashed var(--border); }
+      .pav-xs { width: 1.4rem; height: 1.4rem; font-size: 0.6rem; }
+      .pav-md { width: 38px; height: 38px; font-size: 0.9rem; }
+      .pav-lg { width: 62px; height: 62px; font-size: 1.25rem; }
+      /* Nobody, or a guest still being typed: no name saved, so no colour yet. */
+      .pav-none { background: var(--bg); color: var(--muted); border: 1px dashed var(--border); }
+      .pchip { display: inline-flex; align-items: center; gap: 0.35rem; vertical-align: middle; }
+      a.pchip { color: inherit; text-decoration: none; }
+      a.pchip:hover .pchip-name { text-decoration: underline; }
+      .prow { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+      .prow-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+      .prow-text strong { font-size: 0.85rem; }
+      .prow-text small {
+        font-size: 0.72rem;
+        font-weight: 400;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .persona-picker { border: none; padding: 0; margin: 1rem 0 0; min-width: 0; }
+      .persona-picker legend { font-size: 0.85rem; font-weight: 700; padding: 0; }
+      .persona-filter {
+        display: block;
+        width: 100%;
+        margin-top: 0.35rem;
+        padding: 0.45rem 0.7rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font: inherit;
+        background: var(--surface);
+        color: var(--ink);
+      }
+      .persona-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+        margin-top: 0.35rem;
+        max-height: 16rem;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.25rem;
+        background: var(--surface);
+      }
+      .persona-option {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0;
+        padding: 0.35rem 0.45rem;
+        border-radius: 6px;
+        font-weight: 400;
+        cursor: pointer;
+      }
+      .persona-option[hidden] { display: none; }
+      .persona-option:hover { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+      .persona-option:has(input:checked) { background: color-mix(in srgb, var(--primary) 10%, transparent); }
+      .persona-option input { flex-shrink: 0; margin: 0; accent-color: var(--primary); }
+      .persona-empty { font-size: 0.8rem; color: var(--muted); margin: 0.4rem 0 0; }
       /* Overlapping faces — reads as a group at a glance, in roster order. */
       .stack { display: inline-flex; flex-shrink: 0; }
-      .stack .av + .av { margin-left: -0.45rem; }
-      .stack .av { box-shadow: 0 0 0 2px var(--surface); }
+      .stack .pav + .pav { margin-left: -0.45rem; }
+      .stack .pav { box-shadow: 0 0 0 2px var(--surface); }
 
       .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
       .roster-row {
@@ -881,14 +926,6 @@
         margin: 0;
         font-weight: 400;
         cursor: pointer;
-      }
-      .roster-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
-      .roster-name strong { font-size: 0.85rem; }
-      .roster-name small {
-        font-size: 0.72rem;
-        color: var(--muted);
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
       .involve {
         appearance: none;
@@ -1026,7 +1063,7 @@
       .group-label.seg-maybe { background: var(--accent); color: #2b1c00; }
       .group-label.seg-no { background: var(--danger); color: #fff; }
       .group-label.seg-invited { background: var(--border); color: var(--muted); }
-      .face { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+      .group .pchip { font-size: 0.85rem; }
       .created-by { font-size: 0.85rem; color: var(--muted); margin: 1.25rem 0 0; }
       .feedback-fab {
         position: fixed;
@@ -1075,7 +1112,8 @@
     <div class="viewas-bar">
       <span class="viewas-bar-text">
         <span aria-hidden="true">&#9888;</span>
-        Viewing as <strong><%= it.email %></strong> &mdash; you're really <%= it.impersonator %>
+        Viewing as <strong><%= it.viewer ? it.viewer.name : it.email %></strong> &mdash; you're really
+        <%= it.impersonatorPersona ? it.impersonatorPersona.name : it.impersonator %>
       </span>
       <form method="post" action="/impersonate/stop">
         <input type="hidden" name="return" value="<%= it.path %>" />
@@ -1090,7 +1128,7 @@
         <a href="/" class="<%= it.active === "calendar" ? "active" : "" %>">Calendar</a>
         <a href="/family" class="<%= it.active === "family" ? "active" : "" %>">Family</a>
       </div>
-      <div class="topnav-user"><%= it.email %></div>
+      <div class="topnav-user"><%~ include("./_persona-chip", { persona: it.viewer, link: true }) %></div>
       <% if (it.canImpersonate) { %>
       <button
         class="viewas-btn<%= it.impersonator ? " on" : "" %>"
@@ -1155,5 +1193,45 @@
       })();
     </script>
     <% } %>
+    <script>
+      /* The persona picker (views/_persona-picker.eta). Delegated from the
+         document so a picker fetched in later, like View as, works too. */
+      (function () {
+        document.addEventListener("input", function (inputEvent) {
+          var filter = inputEvent.target;
+          if (!filter.matches || !filter.matches("[data-persona-filter]")) {
+            return;
+          }
+          var picker = filter.closest(".persona-picker");
+          var query = filter.value.trim().toLowerCase();
+          var options = picker.querySelectorAll(".persona-option[data-name]");
+          var shown = 0;
+          for (var i = 0; i < options.length; i += 1) {
+            var match = options[i].getAttribute("data-name").indexOf(query) !== -1;
+            options[i].hidden = !match;
+            if (match) {
+              shown += 1;
+            }
+          }
+          picker.querySelector(".persona-empty").hidden = shown > 0;
+        });
+
+        /* Stop ticking past data-max; the server still refuses more. */
+        document.addEventListener("change", function (changeEvent) {
+          var box = changeEvent.target;
+          if (box.type !== "checkbox" || !box.checked) {
+            return;
+          }
+          var picker = box.closest(".persona-picker[data-max]");
+          if (!picker) {
+            return;
+          }
+          var max = Number(picker.getAttribute("data-max"));
+          if (picker.querySelectorAll('input[type="checkbox"]:checked').length > max) {
+            box.checked = false;
+          }
+        });
+      })();
+    </script>
   </body>
 </html>

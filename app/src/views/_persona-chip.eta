@@ -1,0 +1,8 @@
+<%
+  /* Inline face + name. `link` makes it go to their card when they have one. */
+  var href = it.link && it.persona.personId ? "/family/" + it.persona.personId : null;
+%>
+<% if (href) { %><a class="pchip" href="<%= href %>"><% } else { %><span class="pchip"><% } %>
+<%~ include("./_persona-avatar", { persona: it.persona, size: it.size || "xs" }) %>
+<span class="pchip-name"><%= it.persona.name %></span>
+<% if (href) { %></a><% } else { %></span><% } %>

@@ -328,17 +328,16 @@ export function formatEventWhen(event: Pick<EventDoc, "startAt" | "endAt" | "all
   return `${startDay}, ${startTime} – ${event.endAt.toLocaleDateString(undefined, DAY_FMT)}, ${endTime}`;
 }
 
-/** How a person reads on screen: a guest's name, or a member's email. */
-export function attendeeLabel(attendee: Attendee): string {
-  return attendee.name ?? attendee.email ?? "Someone";
-}
-
-/** One-line roster for a chip's `title` tooltip on the month grid. */
-export function attendeeSummary(attendees: Attendee[]): string {
+/**
+ * One-line roster for a chip's `title` tooltip on the month grid. The
+ * caller names each attendee (PersonaDirectory.forAttendee), so the
+ * tooltip uses the same names as everywhere else.
+ */
+export function attendeeSummary(attendees: Attendee[], nameOf: (attendee: Attendee) => string): string {
   if (attendees.length === 0) {
     return "";
   }
-  return attendees.map((a) => `${attendeeLabel(a)} — ${RSVP_LABELS[a.status]}`).join("\n");
+  return attendees.map((a) => `${nameOf(a)} — ${RSVP_LABELS[a.status]}`).join("\n");
 }
 
 /** Yes first, then Maybe, No, and finally those yet to answer. */

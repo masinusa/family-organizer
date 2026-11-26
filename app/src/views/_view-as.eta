@@ -1,6 +1,6 @@
 <h2>View as</h2>
 <p class="who">
-  You're signed in as <strong><%= it.realEmail %></strong>. Pick somebody to browse as and the whole
+  You're signed in as <strong><%= it.realName %></strong>. Pick somebody to browse as and the whole
   site becomes theirs &mdash; their nav, their permissions, and anything you create is created by
   them.
 </p>
@@ -9,16 +9,15 @@
 <% } else { %>
 <form method="post" action="/impersonate">
   <input type="hidden" name="return" value="<%= it.returnTo %>" />
-  <label>
-    Account
-    <select name="email" required>
-      <% it.options.forEach(function (option) { %>
-      <option value="<%= option.email %>" <%= option.email === it.current ? "selected" : "" %>>
-        <% if (option.name) { %><%= option.name %> &mdash; <% } %><%= option.email %> (<%= option.role %>)
-      </option>
-      <% }) %>
-    </select>
-  </label>
+  <%~ include("./_persona-picker", {
+    name: "email",
+    legend: "Person",
+    personas: it.options,
+    mode: "single",
+    value: "email",
+    selected: it.current ? [it.current] : [],
+    required: true,
+  }) %>
   <button type="submit">View as this person</button>
 </form>
 <% } %>

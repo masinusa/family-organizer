@@ -15,6 +15,9 @@ export function chrome(req: Request, active: string | null): Record<string, unkn
   const { impersonator, path } = impersonationState(req);
   return {
     email: req.user?.email,
+    /** Who the page is for, drawn with the persona partials. */
+    viewer: req.persona!,
+    impersonatorPersona: impersonator ? req.personas!.forEmail(impersonator) : null,
     isAdmin: isAdmin(req),
     active,
     impersonator,

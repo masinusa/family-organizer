@@ -1,0 +1,11 @@
+<%
+  /* Face, name and the subtitle line (account, "Not signed in", "Guest").
+     Shared by the picker, the event roster and the accounts list. */
+%>
+<span class="prow">
+  <%~ include("./_persona-avatar", { persona: it.persona, size: it.size || "sm" }) %>
+  <span class="prow-text">
+    <strong><%= it.persona.name %></strong>
+    <% if (it.subtitle !== false) { %><small><%= it.persona.subtitle %></small><% } %>
+  </span>
+</span>

@@ -25,9 +25,7 @@
       href="/family/<%= card.person.id %>"
       style="<%= card.anchorRight ? "right: " + card.rightInset : "left: " + card.x %>px; top: <%= card.y %>px;"
     >
-      <span class="monogram" style="background: <%= card.swatch.tint %>; color: <%= card.swatch.ink %>;"
-        ><%= card.initials %></span
-      >
+      <%~ include("./_persona-avatar", { persona: card.persona, size: "md" }) %>
       <span class="person-meta">
         <span class="person-name"><%= card.person.name %></span>
         <% if (card.person.blurb) { %>

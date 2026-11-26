@@ -4,6 +4,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { iapAuth } from "./middleware/iap-auth.js";
 import { requireFamilyMember } from "./middleware/access-control.js";
 import { applyImpersonation } from "./middleware/impersonation.js";
+import { loadPersonas } from "./middleware/personas.js";
 import { accessDeniedRouter } from "./routes/access-denied.js";
 import { categoriesRouter } from "./routes/categories.js";
 import { eventsRouter } from "./routes/events.js";
@@ -34,6 +35,9 @@ export function createApp() {
   app.use(impersonateRouter);
   // ...then the app's own Firestore-backed authorization layer.
   app.use(requireFamilyMember);
+  // Everyone on the tree, joined to their accounts once for the whole
+  // request — routes and the top bar draw people from this.
+  app.use(loadPersonas);
   app.use(express.static(publicDir));
   app.use(eventsRouter);
   app.use(categoriesRouter);

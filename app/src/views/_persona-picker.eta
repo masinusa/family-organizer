@@ -1,0 +1,43 @@
+<%
+  /* The one widget for choosing people. Plain radios/checkboxes, so it
+     works without JavaScript; layout.eta adds the filter and `max`.
+     it.name      field name
+     it.legend    what is being picked
+     it.personas  Persona[] to offer
+     it.mode      "single" (radio) | "multi" (checkbox)
+     it.value     "id" | "email" — which Persona field is submitted
+     it.selected  submitted values to pre-check (default none)
+     it.noneLabel optional "nobody" choice (single only)
+     it.max       optional cap on ticks (multi only; server re-checks)
+     it.required  optional (single only) */
+  var type = it.mode === "multi" ? "checkbox" : "radio";
+  var selected = it.selected || [];
+  function valueOf(p) { return it.value === "email" ? p.email : p.personId; }
+%>
+<fieldset class="persona-picker"<% if (it.max) { %> data-max="<%= it.max %>"<% } %>>
+  <legend><%= it.legend %><% if (it.max) { %> <span class="rel-optional">up to <%= it.max %></span><% } %></legend>
+  <% if (it.personas.length > 6) { %>
+  <input type="search" class="persona-filter" data-persona-filter placeholder="Find someone" aria-label="Filter <%= it.legend %>" />
+  <% } %>
+  <div class="persona-options">
+    <% if (it.noneLabel) { %>
+    <label class="persona-option persona-none">
+      <input type="radio" name="<%= it.name %>" value="" <%= selected.length === 0 ? "checked" : "" %> />
+      <span class="prow"><span class="pav pav-sm pav-none">&ndash;</span><span class="prow-text"><strong><%= it.noneLabel %></strong></span></span>
+    </label>
+    <% } %>
+    <% it.personas.forEach(function (p) { %>
+    <label class="persona-option" data-name="<%= p.name.toLowerCase() %>">
+      <input
+        type="<%= type %>"
+        name="<%= it.name %>"
+        value="<%= valueOf(p) %>"
+        <%= selected.includes(valueOf(p)) ? "checked" : "" %>
+        <%= it.required && type === "radio" ? "required" : "" %>
+      />
+      <%~ include("./_persona-row", { persona: p }) %>
+    </label>
+    <% }) %>
+  </div>
+  <p class="persona-empty" hidden>Nobody by that name.</p>
+</fieldset>

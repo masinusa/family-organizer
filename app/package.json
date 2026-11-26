@@ -12,7 +12,8 @@
     "start": "node dist/server.js",
     "test": "node --import tsx --test test/**/*.test.ts",
     "seed:admin": "tsx scripts/seed-admin.ts",
-    "migrate:connections": "tsx scripts/migrate-connections.ts"
+    "migrate:connections": "tsx scripts/migrate-connections.ts",
+    "migrate:personas": "tsx scripts/migrate-personas.ts"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",

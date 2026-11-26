@@ -16,17 +16,20 @@ import {
 import * as eventsRepo from "../lib/events-repo.js";
 import { chrome } from "../lib/chrome.js";
 import { render } from "../lib/render.js";
-import { avatarFor } from "../lib/people.js";
-import * as usersRepo from "../lib/users-repo.js";
 import type { RsvpStatus } from "../lib/types.js";
 
 export const eventsRouter = Router();
 
+/** The roster's field keys: everyone who can sign in. */
+function activeEmails(req: Request): string[] {
+  return req.personas!.active().map((persona) => persona.email!);
+}
+
 async function renderForm(req: Request, values: FormValues, error: string | null): Promise<string> {
-  const [members, categories] = await Promise.all([usersRepo.listUsers(), listCategories()]);
+  const categories = await listCategories();
   const returnTo = safeCalendarReturn(req.query.return ?? req.body?.return);
   return render("event-form", {
-    ...eventFieldsData(values, members, categories.map(toChip)),
+    ...eventFieldsData(values, req.personas!.active(), categories.map(toChip)),
     error,
     returnTo,
     ...chrome(req, "calendar"),
@@ -39,15 +42,11 @@ async function renderForm(req: Request, values: FormValues, error: string | null
  * since a failed parse re-renders the same form.
  */
 async function parseSubmission(
-  body: Record<string, unknown>,
+  req: Request,
   id: string | null,
 ): Promise<{ values: FormValues; parsed: ReturnType<typeof parseEventInput> }> {
-  const [members, categories] = await Promise.all([usersRepo.listUsers(), listCategories()]);
-  const values = formValuesFromBody(
-    body,
-    id,
-    members.map((member) => member.email),
-  );
+  const categories = await listCategories();
+  const values = formValuesFromBody(req.body, id, activeEmails(req));
   return { values, parsed: parseEventInput(values, categories.map((c) => c.id)) };
 }
 
@@ -61,14 +60,10 @@ eventsRouter.get("/", async (req, res, next) => {
 
 eventsRouter.get("/events/new", async (req, res, next) => {
   try {
-    const members = await usersRepo.listUsers();
     // Where a day cell lands when JavaScript isn't available to open the
     // quick-add modal in place.
     const date = typeof req.query.date === "string" ? req.query.date : "";
-    const values = blankFormValues(
-      members.map((member) => member.email),
-      date,
-    );
+    const values = blankFormValues(activeEmails(req), date);
     res.send(await renderForm(req, values, null));
   } catch (err) {
     next(err);
@@ -77,7 +72,7 @@ eventsRouter.get("/events/new", async (req, res, next) => {
 
 eventsRouter.post("/events", async (req, res, next) => {
   try {
-    const { values, parsed } = await parseSubmission(req.body, null);
+    const { values, parsed } = await parseSubmission(req, null);
     if ("error" in parsed) {
       res.status(400).send(await renderForm(req, values, parsed.error));
       return;
@@ -105,9 +100,10 @@ async function cardData(req: Request, eventId: string): Promise<Record<string, u
     category: event.categoryId ? chipFor(event.categoryId) : null,
     groups: groupAttendees(event.attendees).map((group) => ({
       ...group,
-      faces: group.people.map(avatarFor),
+      faces: group.people.map((attendee) => req.personas!.forAttendee(attendee)),
     })),
     yourStatus: you?.status ?? null,
+    createdBy: req.personas!.forEmail(event.createdBy),
     statuses: RSVP_STATUSES.map((status) => ({ value: status, label: RSVP_LABELS[status] })),
     returnTo,
     returnQuery: returnTo ? `?return=${encodeURIComponent(returnTo)}` : "",
@@ -160,7 +156,7 @@ eventsRouter.get("/events/:id/edit", async (req, res, next) => {
 
 eventsRouter.post("/events/:id", async (req, res, next) => {
   try {
-    const { values, parsed } = await parseSubmission(req.body, req.params.id);
+    const { values, parsed } = await parseSubmission(req, req.params.id);
     if ("error" in parsed) {
       res.status(400).send(await renderForm(req, values, parsed.error));
       return;

@@ -47,6 +47,7 @@ feedbackRouter.get("/admin/feedback", requireAdmin, async (req, res, next) => {
       render("admin-feedback", {
         feedback,
         statuses: FEEDBACK_STATUSES,
+        personaFor: (email: string) => req.personas!.forEmail(email),
         error: null,
         ...chrome(req, "admin"),
       }),
@@ -65,6 +66,7 @@ feedbackRouter.post("/admin/feedback/:id/status", requireAdmin, async (req, res,
         render("admin-feedback", {
           feedback,
           statuses: FEEDBACK_STATUSES,
+          personaFor: (email: string) => req.personas!.forEmail(email),
           error: "Choose a valid feedback status.",
           ...chrome(req, "admin"),
         }),

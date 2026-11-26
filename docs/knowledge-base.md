@@ -416,6 +416,50 @@ don't rewrite — newest entry last in each section.
   role and `canImpersonate` the real one — they deliberately disagree while
   impersonating.
 
+- **A person is drawn one way everywhere: a `Persona`**
+  (`app/src/lib/persona.ts`). This replaces the "deterministic avatars"
+  decision above. `lib/people.ts` and its email-derived names are gone,
+  because the calendar showed "Mary Jane" in purple while the tree showed
+  "Mary Jane Smith" in her chosen sage. `PersonaDirectory` joins `people` to
+  `users` by normalized email, once. Each persona carries name, email,
+  role (non-null means *active*, i.e. can sign in), two-letter initials and
+  a `PERSONA_COLORS` swatch. The chosen colour wins, otherwise it's hashed
+  from the name. Guests hash into the same palette. Templates draw a
+  persona only through `views/_persona-avatar`, `_persona-chip`,
+  `_persona-row` and `_persona-picker`, never with ad-hoc markup.
+  - `users` and `people` stay separate collections. `users` is the access
+    record that IAP sync and `requireFamilyMember` key on (ADR 0006), and
+    merging role onto people would mean redoing that security boundary to
+    fix a display problem.
+  - The directory is loaded once per request by `middleware/personas.ts`,
+    after `requireFamilyMember`, into `req.personas` and `req.persona`.
+    That's two reads on every page, at family scale, in exchange for no
+    route re-joining the collections itself. A page re-rendered in place
+    after a write has to reload it (`refreshPersonas` in `routes/family.ts`).
+  - A stored email that no longer matches anyone (an old attendee,
+    `createdBy` or `submittedBy`) resolves to an explicit `unknown` persona:
+    the raw address in grey. That's a real state of the data, and it never
+    guesses a name.
+- **Every account belongs to somebody on the tree.** `PersonaDirectory`
+  throws on a `users` doc with no matching person, rather than inventing a
+  name for it. The pieces that keep it that way:
+  - `npm run migrate:personas` creates a placeholder person for each
+    existing orphan, once per deployment.
+  - `seed:admin` now takes a name.
+  - Access is granted only from a person's page. The bare-email grant on
+    `/family/accounts` and the "link an existing account" picker are gone.
+  - A person's email can't change, and the person can't be deleted, while
+    they still have access. Remove access first. Otherwise the old address
+    would be left as an account nobody owns.
+- **One picker for choosing people**: `views/_persona-picker.eta`. It's a
+  list of radio or checkbox rows with avatars, not a `<select>`, because an
+  option can't hold a face. Being plain inputs, it needs no JavaScript.
+  The filter box (shown above six people) and the `data-max` cap are one
+  delegated script in `layout.eta`, so a picker fetched in later (View as)
+  gets them too. The server still enforces the cap (`TOO_MANY_PARENTS_ERROR`).
+  The event roster reuses `_persona-row` rather than the picker, because
+  each row also carries an RSVP control.
+
 ## Guidelines
 
 - Terraform owns the Cloud Run service's shape (ingress, IAP, IAM); GitHub

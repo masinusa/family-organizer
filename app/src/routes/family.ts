@@ -3,6 +3,7 @@ import { requireAdmin } from "../middleware/access-control.js";
 import { chrome } from "../lib/chrome.js";
 import { render } from "../lib/render.js";
 import { normalizeEmail } from "../lib/email.js";
+import { loadPersonaDirectory } from "../middleware/personas.js";
 import {
   findDescendantIds,
   peopleRepo,
@@ -14,23 +15,18 @@ import {
 } from "../lib/people-repo.js";
 import * as usersRepo from "../lib/users-repo.js";
 import { IAP_SYNC_WARNING, LAST_ADMIN_ERROR } from "../lib/users-repo.js";
+import { canEditPersona, findDuplicateEmailOwner } from "../lib/family-link.js";
 import {
-  canEditPersona,
-  findDuplicateEmailOwner,
-  findPersonForEmail,
-  matchAccounts,
-} from "../lib/family-link.js";
-import {
-  colorFor,
   formatBirthday,
-  initialsFor,
   isValidBirthYear,
   MIN_BIRTH_YEAR,
   MONTH_NAMES,
   PERSONA_COLORS,
+  type Persona,
+  type PersonaDirectory,
 } from "../lib/persona.js";
 import { buildTreeLayout } from "../lib/tree-layout.js";
-import type { PersonDoc, PersonaInput, UserRole } from "../lib/types.js";
+import type { PersonaInput, UserRole } from "../lib/types.js";
 
 export const familyRouter = Router();
 
@@ -47,8 +43,29 @@ const RELATIONSHIP_KINDS = ["parent", "connection"];
 const VALID_ROLES: UserRole[] = ["admin", "member"];
 const BLURB_MAX = 60;
 
+/**
+ * Every account belongs to somebody on the tree (lib/persona.ts throws
+ * otherwise), so a person's email can't move or vanish while it still
+ * grants access — the old address would be left as an account nobody owns.
+ */
+const HAS_ACCESS_EMAIL_ERROR = "Remove their access before changing their email.";
+const HAS_ACCESS_DELETE_ERROR = "Remove their access before taking them off the tree.";
+
 function viewer(req: Request): { email: string; role: UserRole } {
   return { email: req.appUser!.email, role: req.appUser!.role };
+}
+
+function personas(req: Request): PersonaDirectory {
+  return req.personas!;
+}
+
+/**
+ * The directory is loaded once at the start of the request, so a page
+ * re-rendered in place after a write (an IAP warning) has to reload it to
+ * show what was just saved.
+ */
+async function refreshPersonas(req: Request): Promise<void> {
+  req.personas = await loadPersonaDirectory();
 }
 
 function str(value: unknown): string {
@@ -84,73 +101,68 @@ function parsePersona(body: Record<string, unknown>): PersonaInput | { error: st
 }
 
 /**
- * The parent picker submits two `parentIds` fields, so this arrives as an
- * array or (when only one is chosen) a bare string. Blanks are dropped —
- * leaving the second dropdown on "nobody" is how you add one parent.
+ * The parent picker is a set of `parentIds` checkboxes, so this arrives as
+ * an array or (when only one is ticked) a bare string. Blanks are dropped.
  */
 function parsePersonIds(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.filter((v): v is string => typeof v === "string" && v !== "");
   return typeof raw === "string" && raw ? [raw] : [];
 }
 
+/** The account half of a persona, in the shape the templates show it. */
+function accountOf(persona: Persona): { email: string; role: UserRole } | null {
+  return persona.role ? { email: persona.email!, role: persona.role } : null;
+}
+
 async function renderTree(req: Request) {
-  const [people, users] = await Promise.all([peopleRepo.listPeople(), usersRepo.listUsers()]);
-  const { accountByPersonId } = matchAccounts(people, users);
-  const you = findPersonForEmail(people, viewer(req).email);
-  const layout = buildTreeLayout(people);
+  const directory = personas(req);
+  const layout = buildTreeLayout(directory.people);
 
   // The template stays dumb — everything it needs is resolved here, the
   // same way calendar.eta just walks a pre-built grid.
-  const cards = layout.cards.map((card) => ({
-    ...card,
-    initials: initialsFor(card.person.name),
-    swatch: colorFor(card.person),
-    birthday: formatBirthday(card.person.birthMonth, card.person.birthDay),
-    account: accountByPersonId.get(card.person.id) ?? null,
-    hasAccount: accountByPersonId.has(card.person.id),
-    isYou: you?.id === card.person.id,
-  }));
+  const cards = layout.cards.map((card) => {
+    const persona = directory.byId(card.person.id)!;
+    return {
+      ...card,
+      persona,
+      birthday: formatBirthday(card.person.birthMonth, card.person.birthDay),
+      account: accountOf(persona),
+      hasAccount: persona.role !== null,
+      isYou: req.persona!.personId === card.person.id,
+    };
+  });
 
   return render("family", { ...chrome(req, "family"), layout, cards });
 }
 
 /** Null when the person doesn't exist, so callers can 404. */
 async function renderPerson(req: Request, id: string, notice: { error?: string; warning?: string } = {}) {
-  const [person, people, users] = await Promise.all([
-    peopleRepo.getPerson(id),
-    peopleRepo.listPeople(),
-    usersRepo.listUsers(),
-  ]);
+  const directory = personas(req);
+  const person = directory.people.find((p) => p.id === id);
   if (!person) return null;
-
-  const { accountByPersonId, orphanAccounts } = matchAccounts(people, users);
-  const byId = new Map(people.map((p) => [p.id, p]));
-  const resolve = (ids: string[]) => ids.map((pid) => byId.get(pid)).filter((p): p is PersonDoc => !!p);
+  const persona = directory.byId(id)!;
+  const resolve = (ids: string[]) => ids.map((pid) => directory.byId(pid)).filter((p): p is Persona => !!p);
 
   // The pickers only offer links that would actually be accepted, so the
   // rules in people-repo are a backstop rather than the way you find out:
   // a descendant can't be a parent (that's the cycle), and an existing
   // link isn't worth offering twice.
-  const others = people.filter((p) => p.id !== person.id);
-  const descendants = findDescendantIds(person.id, people);
+  const others = directory.all().filter((p) => p.personId !== id);
+  const descendants = findDescendantIds(id, directory.people);
 
   return render("person", {
     ...chrome(req, "family"),
     person,
+    persona,
     parents: resolve(person.parentIds),
     connections: resolve(person.connectionIds),
-    children: people.filter((p) => p.parentIds.includes(person.id)),
-    parentOptions: others.filter((p) => !person.parentIds.includes(p.id) && !descendants.has(p.id)),
-    connectionOptions: others.filter((p) => !person.connectionIds.includes(p.id)),
+    children: resolve(directory.people.filter((p) => p.parentIds.includes(id)).map((p) => p.id)),
+    parentOptions: others.filter((p) => !person.parentIds.includes(p.personId!) && !descendants.has(p.personId!)),
+    connectionOptions: others.filter((p) => !person.connectionIds.includes(p.personId!)),
     /** At two parents already, so the parent half of the form is closed off. */
     parentsFull: person.parentIds.length >= 2,
-    account: accountByPersonId.get(person.id) ?? null,
-    // Accounts belonging to nobody on the tree yet — the candidates for
-    // "link this person to an existing account".
-    linkableAccounts: orphanAccounts,
+    account: accountOf(persona),
     canEdit: canEditPersona(viewer(req), person),
-    initials: initialsFor(person.name),
-    swatch: colorFor(person),
     birthday: formatBirthday(person.birthMonth, person.birthDay),
     colors: PERSONA_COLORS,
     months: MONTH_NAMES,
@@ -162,19 +174,9 @@ async function renderPerson(req: Request, id: string, notice: { error?: string; 
 }
 
 async function renderAccounts(req: Request, notice: { error?: string; warning?: string } = {}) {
-  const [people, users] = await Promise.all([peopleRepo.listPeople(), usersRepo.listUsers()]);
-  const { orphanAccounts } = matchAccounts(people, users);
-  const orphans = new Set(orphanAccounts.map((u) => normalizeEmail(u.email)));
-
-  const rows = users.map((user) => ({
-    user,
-    person: findPersonForEmail(people, user.email),
-    isOrphan: orphans.has(normalizeEmail(user.email)),
-  }));
-
   return render("accounts", {
     ...chrome(req, "family"),
-    rows,
+    rows: personas(req).active(),
     error: notice.error ?? null,
     warning: notice.warning ?? null,
   });
@@ -213,6 +215,13 @@ familyRouter.post("/family/people", requireAdmin, async (req, res, next) => {
       return;
     }
     const email = str(req.body.email);
+    const clash = email ? findDuplicateEmailOwner(personas(req).people, email, "") : null;
+    if (clash) {
+      res.status(400).send(
+        render("person-new", { ...chrome(req, "family"), error: `${clash.name} already uses that email.` }),
+      );
+      return;
+    }
     const person = await peopleRepo.createPerson(name, email || null);
     res.redirect(`/family/${person.id}`);
   } catch (err) {
@@ -222,24 +231,8 @@ familyRouter.post("/family/people", requireAdmin, async (req, res, next) => {
 
 /* ---------------------------- accounts ---------------------------- */
 
-familyRouter.post("/family/accounts", requireAdmin, async (req, res, next) => {
-  try {
-    const email = str(req.body.email);
-    const role = req.body.role;
-    if (!email || !VALID_ROLES.includes(role)) {
-      res.status(400).send(await renderAccounts(req, { error: "A valid email and role are required." }));
-      return;
-    }
-    const { iapFailed } = await usersRepo.createUser(email, role as UserRole);
-    if (iapFailed) {
-      res.send(await renderAccounts(req, { warning: IAP_SYNC_WARNING }));
-      return;
-    }
-    res.redirect("/family/accounts");
-  } catch (err) {
-    next(err);
-  }
-});
+// Granting access happens only from a person's page (POST
+// /family/:id/account), so every account has somebody on the tree.
 
 familyRouter.post("/family/accounts/:email/role", requireAdmin, async (req, res, next) => {
   try {
@@ -263,6 +256,7 @@ familyRouter.post("/family/accounts/:email/delete", requireAdmin, async (req, re
   try {
     const { iapFailed } = await usersRepo.deleteUser(req.params.email);
     if (iapFailed) {
+      await refreshPersonas(req);
       res.send(await renderAccounts(req, { warning: IAP_SYNC_WARNING }));
       return;
     }
@@ -318,9 +312,18 @@ familyRouter.post("/family/:id/persona", async (req, res, next) => {
 familyRouter.post("/family/:id/email", requireAdmin, async (req, res, next) => {
   try {
     const email = str(req.body.email);
+    const persona = personas(req).byId(req.params.id);
+    if (!persona) {
+      res.status(404).send("Person not found");
+      return;
+    }
+    const unchanged = (persona.email ?? "") === (email ? normalizeEmail(email) : "");
+    if (persona.role && !unchanged) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: HAS_ACCESS_EMAIL_ERROR }));
+      return;
+    }
     if (email) {
-      const people = await peopleRepo.listPeople();
-      const clash = findDuplicateEmailOwner(people, email, req.params.id);
+      const clash = findDuplicateEmailOwner(personas(req).people, email, req.params.id);
       if (clash) {
         res.status(400).send(
           await renderPerson(req, req.params.id, {
@@ -361,6 +364,7 @@ familyRouter.post("/family/:id/account", requireAdmin, async (req, res, next) =>
         : await usersRepo.createUser(person.email, role);
 
     if (iapFailed) {
+      await refreshPersonas(req);
       res.send(await renderPerson(req, req.params.id, { warning: IAP_SYNC_WARNING }));
       return;
     }
@@ -437,6 +441,10 @@ familyRouter.post("/family/:id/relationships/remove", requireAdmin, async (req, 
 
 familyRouter.post("/family/:id/delete", requireAdmin, async (req, res, next) => {
   try {
+    if (personas(req).byId(req.params.id)?.role) {
+      res.status(400).send(await renderPerson(req, req.params.id, { error: HAS_ACCESS_DELETE_ERROR }));
+      return;
+    }
     await peopleRepo.deletePerson(req.params.id);
     res.redirect("/family");
   } catch (err) {

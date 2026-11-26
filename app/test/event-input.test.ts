@@ -212,12 +212,16 @@ test("groupAttendees orders answers yes, maybe, no, then unanswered", () => {
 });
 
 test("attendeeSummary labels every person for the grid tooltip", () => {
-  const summary = attendeeSummary([
-    { email: "a@example.com", name: null, status: "yes" },
-    { email: null, name: "Aunt Jo", status: "invited" },
-  ]);
-  assert.equal(summary, "a@example.com — Yes\nAunt Jo — Invited");
-  assert.equal(attendeeSummary([]), "");
+  const nameOf = (a: { email: string | null; name: string | null }) => (a.email ? "Ada Spicer" : a.name!);
+  const summary = attendeeSummary(
+    [
+      { email: "a@example.com", name: null, status: "yes" },
+      { email: null, name: "Aunt Jo", status: "invited" },
+    ],
+    nameOf,
+  );
+  assert.equal(summary, "Ada Spicer — Yes\nAunt Jo — Invited");
+  assert.equal(attendeeSummary([], nameOf), "");
 });
 
 test("formatEventWhen says All day without times, and spans dates", () => {

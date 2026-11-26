@@ -93,30 +93,24 @@
       <% it.roster.forEach(function (person) { %>
       <li
         class="roster-row"
-        data-label="<%= person.avatar.label %>"
+        data-label="<%= person.persona.name %>"
       >
         <label class="roster-who">
           <input
             type="checkbox"
             class="involve"
-            name="involved:<%= person.email %>"
-            aria-label="Add <%= person.avatar.label %> to this event"
+            name="involved:<%= person.persona.email %>"
+            aria-label="Add <%= person.persona.name %> to this event"
             <%= person.status ? "checked" : "" %>
           />
-          <span class="av" style="background: <%= person.avatar.color %>; color: <%= person.avatar.ink %>"
-            ><%= person.avatar.initial %></span
-          >
-          <span class="roster-name">
-            <strong><%= person.avatar.label %></strong>
-            <small><%= person.email %></small>
-          </span>
+          <%~ include("./_persona-row", { persona: person.persona }) %>
         </label>
-        <div class="seg" role="group" aria-label="Response for <%= person.avatar.label %>">
+        <div class="seg" role="group" aria-label="Response for <%= person.persona.name %>">
           <% it.statuses.forEach(function (status) { %>
           <label class="seg-opt seg-<%= status.value %>">
             <input
               type="radio"
-              name="memberStatus:<%= person.email %>"
+              name="memberStatus:<%= person.persona.email %>"
               value="<%= status.value %>"
               <%= (person.status || "invited") === status.value ? "checked" : "" %>
             />
@@ -133,11 +127,11 @@
     <ul class="roster" id="guest-list">
       <% it.guestRows.forEach(function (guest) { %>
       <li class="roster-row guest-row">
-        <span
-          class="av guest-av"
-          <% if (guest.avatar) { %>style="background: <%= guest.avatar.color %>; color: <%= guest.avatar.ink %>"<% } %>
-          ><%= guest.avatar ? guest.avatar.initial : "+" %></span
-        >
+        <% if (guest.persona) { %>
+        <%~ include("./_persona-avatar", { persona: guest.persona, extraClass: "guest-face" }) %>
+        <% } else { %>
+        <span class="pav pav-sm pav-none guest-face">+</span>
+        <% } %>
         <input
           class="guest-name"
           type="text"
@@ -172,7 +166,7 @@
     %>
     <template id="guest-template">
       <li class="roster-row guest-row">
-        <span class="av guest-av">+</span>
+        <span class="pav pav-sm pav-none guest-face">+</span>
         <input
           class="guest-name"
           type="text"
@@ -263,12 +257,25 @@
     var firstGuestIndex = <%= it.nextGuestIndex %>;
     var nextGuest = firstGuestIndex;
 
+    // Mirrors initialsFor in lib/persona.ts, so a guest being typed shows
+    // the same letters it will have once saved.
+    function initialsFor(name) {
+      var parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) {
+        return "";
+      }
+      var first = Array.from(parts[0])[0];
+      var last = parts.length > 1 ? Array.from(parts[parts.length - 1])[0] : "";
+      return (first + last).toUpperCase();
+    }
+
     // Clone the row's own avatar rather than rebuilding one: it already
     // carries the server's colour for a saved person, the dashed
     // placeholder for a guest still being typed, and the live initial.
     function faceFrom(avatar, label) {
       var face = avatar.cloneNode(true);
-      face.classList.add("av-xs");
+      face.classList.remove("pav-sm");
+      face.classList.add("pav-xs");
       face.title = label;
       return face;
     }
@@ -297,13 +304,13 @@
         var involve = row.querySelector(".involve");
         if (involve) {
           if (involve.checked) {
-            faces.push(faceFrom(row.querySelector(".av"), row.dataset.label));
+            faces.push(faceFrom(row.querySelector(".pav"), row.dataset.label));
           }
           continue;
         }
         var name = row.querySelector(".guest-name");
         if (name && name.value.trim()) {
-          faces.push(faceFrom(row.querySelector(".guest-av"), name.value.trim()));
+          faces.push(faceFrom(row.querySelector(".guest-face"), name.value.trim()));
         }
       }
 
@@ -361,9 +368,8 @@
     form.addEventListener("input", function (inputEvent) {
       var target = inputEvent.target;
       if (target.classList.contains("guest-name")) {
-        var face = target.parentNode.querySelector(".guest-av");
-        var typed = target.value.trim();
-        face.textContent = typed ? typed.charAt(0).toUpperCase() : "+";
+        var face = target.parentNode.querySelector(".guest-face");
+        face.textContent = initialsFor(target.value) || "+";
         syncPeople();
       } else if (target.id === "field-location" || target.id === "field-link" || target.id === "field-description") {
         syncDetails();

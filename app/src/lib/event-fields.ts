@@ -1,11 +1,11 @@
 import type { CategoryChip } from "./categories.js";
 import { RSVP_LABELS, RSVP_STATUSES, type FormValues } from "./event-input.js";
-import { avatarForEmail, avatarForName, type Avatar } from "./people.js";
-import type { RsvpStatus, UserDoc } from "./types.js";
+import { guestPersona, type Persona } from "./persona.js";
+import type { RsvpStatus } from "./types.js";
 
 export interface RosterEntry {
-  email: string;
-  avatar: Avatar;
+  /** An active persona, so `email` is always set — it's the field key. */
+  persona: Persona;
   /** null when they're not on this event. */
   status: RsvpStatus | null;
 }
@@ -14,7 +14,8 @@ export interface GuestEntry {
   index: number;
   name: string;
   status: RsvpStatus;
-  avatar: Avatar | null;
+  /** null for a row with no name yet. */
+  persona: Persona | null;
 }
 
 /** How long a location can be before the collapsed summary trims it. */
@@ -50,20 +51,19 @@ export function detailsSummary(values: FormValues): string {
  */
 export function eventFieldsData(
   values: FormValues,
-  members: UserDoc[],
+  members: Persona[],
   categories: CategoryChip[],
 ): Record<string, unknown> {
-  const roster: RosterEntry[] = members.map((member) => ({
-    email: member.email,
-    avatar: avatarForEmail(member.email),
-    status: (values.memberStatuses[member.email] as RsvpStatus | undefined) ?? null,
+  const roster: RosterEntry[] = members.map((persona) => ({
+    persona,
+    status: (values.memberStatuses[persona.email!] as RsvpStatus | undefined) ?? null,
   }));
 
   const guestRows: GuestEntry[] = values.guests.map((guest, index) => ({
     index,
     name: guest.name,
     status: guest.status,
-    avatar: guest.name.trim() ? avatarForName(guest.name) : null,
+    persona: guest.name.trim() ? guestPersona(guest.name.trim()) : null,
   }));
 
   return {
@@ -75,8 +75,8 @@ export function eventFieldsData(
     selectedCategory: categories.find((c) => c.id === values.categoryId) ?? null,
     // Shown on the collapsed "Who's involved" row.
     involved: [
-      ...roster.filter((entry) => entry.status !== null).map((entry) => entry.avatar),
-      ...guestRows.map((guest) => guest.avatar).filter((a): a is Avatar => a !== null),
+      ...roster.filter((entry) => entry.status !== null).map((entry) => entry.persona),
+      ...guestRows.map((guest) => guest.persona).filter((p): p is Persona => p !== null),
     ],
     detailsSummary: detailsSummary(values),
     /** Index the first JS-added guest row should use. */

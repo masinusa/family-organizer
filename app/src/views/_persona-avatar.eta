@@ -1,0 +1,6 @@
+<%
+  /* The one way a face is drawn. Colours come from PERSONA_COLORS keys,
+     never user input, so they are safe inside a style attribute.
+     Sizes: xs (stacks), sm (rows/chips), md (tree card), lg (person page). */
+%>
+<span class="pav pav-<%= it.size || "sm" %><%= it.extraClass ? " " + it.extraClass : "" %>" style="--pav-tint: <%= it.persona.color.tint %>; --pav-ink: <%= it.persona.color.ink %>" title="<%= it.persona.name %>"><%= it.persona.initials %></span>

@@ -5,8 +5,8 @@ import * as eventsRepo from "./events-repo.js";
 import { eventFieldsData } from "./event-fields.js";
 import { attendeeSummary, blankFormValues, formatDateInput } from "./event-input.js";
 import { render } from "./render.js";
-import * as usersRepo from "./users-repo.js";
 import { chrome } from "./chrome.js";
+import type { Attendee } from "./types.js";
 
 export interface MonthSelection {
   year: number;
@@ -83,14 +83,15 @@ export async function renderCalendarPage(
   const finalMonth = months[months.length - 1]!;
   const displayEnd = new Date(finalMonth.year, finalMonth.month, 1);
 
-  const [events, categories, members] = await Promise.all([
+  const [events, categories] = await Promise.all([
     eventsRepo.listInRange(monthStart, displayEnd),
     listCategories(),
-    // Needed by the quick-add modal, which renders the same fields as the
-    // full event form (views/_event-fields.eta).
-    usersRepo.listUsers(),
   ]);
   const chips = categories.map(toChip);
+  const personas = req.personas!;
+  // The quick-add modal renders the same roster as the full event form
+  // (views/_event-fields.eta): everyone who can sign in.
+  const members = personas.active();
 
   return render("calendar", {
     months: months.map((calendarMonth) => ({
@@ -108,7 +109,8 @@ export async function renderCalendarPage(
     next: month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 },
     categories: chips,
     chipFor: makeChipLookup(categories),
-    attendeeSummary,
+    attendeeSummary: (attendees: Attendee[]) =>
+      attendeeSummary(attendees, (attendee) => personas.forAttendee(attendee).name),
     dateInput: formatDateInput,
     defaultDate: formatDateInput(defaultNewEventDate(year, month)),
     /** This very month — where the modals send the reader back to. */
@@ -116,7 +118,7 @@ export async function renderCalendarPage(
     nameMax: CATEGORY_NAME_MAX,
     // Quick-add modal — the same fields as the full-page form.
     ...eventFieldsData(
-      blankFormValues(members.map((member) => member.email)),
+      blankFormValues(members.map((member) => member.email!)),
       members,
       chips,
     ),

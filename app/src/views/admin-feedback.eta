@@ -13,7 +13,7 @@
   <div>
     <div class="feedback-meta">
       <strong><%= item.category.charAt(0).toUpperCase() + item.category.slice(1) %></strong>
-      &middot; <%= item.submittedBy %>
+      &middot; <%~ include("./_persona-chip", { persona: it.personaFor(item.submittedBy), link: true }) %>
       &middot; <time datetime="<%= item.createdAt.toISOString() %>"><%= item.createdAt.toLocaleString() %></time>
     </div>
     <p class="feedback-message"><%= item.message %></p>

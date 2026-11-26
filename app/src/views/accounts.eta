@@ -8,55 +8,30 @@
 <p class="warning"><%= it.warning %></p>
 <% } %>
 <p class="who">
-  Adding an email here grants access to this site &mdash; they'll be able to sign in with that Google
-  account, and removing it takes the access away again. Normally you'd do this from a person's page
-  instead; this list exists so an account that isn't matched to anyone on the tree can still be
-  managed.
+  Everyone with access to this site. To let someone new sign in, open their card on the tree and
+  grant access there &mdash; every account belongs to someone on the tree.
 </p>
 
-<% it.rows.forEach(function (row) { %>
+<% it.rows.forEach(function (persona) { %>
 <div class="card">
   <div class="bar"></div>
   <div>
-    <div><strong><%= row.user.email %></strong> &mdash; <%= row.user.role %></div>
-    <div class="when">
-      <% if (row.person) { %>
-      <a href="/family/<%= row.person.id %>"><%= row.person.name %></a> on the tree
-      <% } else { %>
-      <span class="flag">Not on the tree</span>
-      <% } %>
-    </div>
-    <form class="inline" method="post" action="/family/accounts/<%= encodeURIComponent(row.user.email) %>/role">
+    <a href="/family/<%= persona.personId %>"><%~ include("./_persona-row", { persona: persona }) %></a>
+    <form class="inline" method="post" action="/family/accounts/<%= encodeURIComponent(persona.email) %>/role">
       <select name="role">
-        <option value="member" <%= row.user.role === "member" ? "selected" : "" %>>Member</option>
-        <option value="admin" <%= row.user.role === "admin" ? "selected" : "" %>>Admin</option>
+        <option value="member" <%= persona.role === "member" ? "selected" : "" %>>Member</option>
+        <option value="admin" <%= persona.role === "admin" ? "selected" : "" %>>Admin</option>
       </select>
       <button type="submit">Update role</button>
     </form>
     <form
       class="inline"
       method="post"
-      action="/family/accounts/<%= encodeURIComponent(row.user.email) %>/delete"
-      onsubmit="return confirm('Remove access for <%= row.user.email %>? They\'ll need to be re-added to get back in.');"
+      action="/family/accounts/<%= encodeURIComponent(persona.email) %>/delete"
+      onsubmit="return confirm('Remove their access? They stay on the tree, but can no longer sign in.');"
     >
       <button type="submit">Remove access</button>
     </form>
   </div>
 </div>
 <% }) %>
-
-<h2>Grant access</h2>
-<form method="post" action="/family/accounts">
-  <label>
-    Email
-    <input type="text" name="email" required placeholder="name@example.com" />
-  </label>
-  <label>
-    Role
-    <select name="role">
-      <option value="member">Member</option>
-      <option value="admin">Admin</option>
-    </select>
-  </label>
-  <button type="submit">Grant access</button>
-</form>
