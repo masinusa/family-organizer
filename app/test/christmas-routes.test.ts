@@ -15,14 +15,23 @@ function person(id: string, name: string, circle: PersonDoc["circle"] = "family"
     birthYear: null, color: null, parentIds: [], connectionIds: [], createdAt: at, updatedAt: at,
   };
 }
-function user(id: string, role: UserDoc["role"]): UserDoc {
-  return { email: `${id}@example.com`, role, optIns: [], createdAt: at, updatedAt: at };
+function user(id: string, role: UserDoc["role"], optIns: UserDoc["optIns"] = []): UserDoc {
+  return { email: `${id}@example.com`, role, optIns, createdAt: at, updatedAt: at };
 }
 
-// Admin runs it and takes part; Rae is a friend; Mo is family but not in it.
+// Admin runs it and takes part; Rae is a friend in it (Christmas not
+// switched on — she's in by taking part). Mo is family but not in it. Nan
+// is family with no account; Kit is a friend without Christmas, Lou one with.
 const directory = new PersonaDirectory(
-  [person("ada", "Ada Admin"), person("bea", "Bea Bloom"), person("cal", "Cal Crane"), person("rae", "Rae Friend", "friend"), person("mo", "Mo Outside")],
-  [user("ada", "admin"), user("bea", "member"), user("cal", "member"), user("rae", "friend"), user("mo", "member")],
+  [
+    person("ada", "Ada Admin"), person("bea", "Bea Bloom"), person("cal", "Cal Crane"),
+    person("rae", "Rae Friend", "friend"), person("mo", "Mo Outside"), person("nan", "Nan Nomail"),
+    person("kit", "Kit Notin", "friend"), person("lou", "Lou Optedin", "friend"),
+  ],
+  [
+    user("ada", "admin"), user("bea", "member"), user("cal", "member"), user("rae", "friend"),
+    user("mo", "member"), user("kit", "friend"), user("lou", "friend", ["christmas"]),
+  ],
 );
 
 const exchange: SecretSantaDoc = {
@@ -242,4 +251,31 @@ test("an empty note is refused", async (t) => {
   const res = await request("bea", "/christmas/secret-santa/2026/ask-recipient", { text: "   " });
   assert.equal(res.status, 400);
   assert.equal(sent.mock.callCount(), 0);
+});
+
+/* --------------------------- who can join --------------------------- */
+
+function offered(html: string): string[] {
+  return [...html.matchAll(/name="participantIds"\s+value="([^"]+)"/g)].map((m) => m[1]!).sort();
+}
+
+test("the participant picker offers accounts: family, and friends with Christmas on", async (t) => {
+  stubRepo(t);
+  const { html } = await get("ada", "/christmas/secret-santa/2026");
+  // Rae isn't opted in, but she's already in it, so she stays offered.
+  assert.deepEqual(offered(html), ["ada", "bea", "cal", "lou", "mo", "rae"]);
+});
+
+test("saving participants refuses anyone the picker wouldn't offer", async (t) => {
+  stubRepo(t);
+  const saved = t.mock.method(secretSantaRepo, "setParticipants", async () => {});
+  for (const outsider of ["nan", "kit"]) {
+    const res = await request("ada", "/christmas/secret-santa/2026/participants", { participantIds: outsider });
+    assert.equal(res.status, 400, outsider);
+  }
+  assert.equal(saved.mock.callCount(), 0);
+
+  const ok = await request("ada", "/christmas/secret-santa/2026/participants", { participantIds: "lou" });
+  assert.equal(ok.status, 302);
+  assert.deepEqual(saved.mock.calls[0]!.arguments, [2026, ["lou"]]);
 });

@@ -183,7 +183,7 @@ see all of them. Filtering happens in the app
 | year           | integer                                                       |
 | budget         | nullable whole dollars, 1–10,000                              |
 | exchangeDate   | nullable `"YYYY-MM-DD"` — a calendar day, not an instant      |
-| participantIds | person ids, family or friend                                  |
+| participantIds | person ids: family with an account, or friends with an account and Christmas switched on |
 | assignments    | map giver person id → receiver person id; `{}` until drawn    |
 | drawnAt        | nullable Timestamp of the last draw (not of a hand edit)      |
 | createdBy      | Email from the verified IAP identity                          |

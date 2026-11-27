@@ -85,6 +85,19 @@ function mine(req: Request, exchange: SecretSantaDoc) {
   };
 }
 
+/**
+ * Who can be put in an exchange: family with an account, and friends with
+ * an account who have Christmas switched on (`audience`). Anyone already
+ * in it stays offered even if they no longer qualify, so saving the picker
+ * never drops somebody nobody unticked.
+ */
+function eligible(req: Request, exchange: SecretSantaDoc): Persona[] {
+  const audience = req.personas!.audience("christmas");
+  const offered = new Set(audience.map((p) => p.personId));
+  const current = exchange.participantIds.filter((id) => !offered.has(id)).map((id) => personaFor(req, id));
+  return [...audience, ...current].sort(byName);
+}
+
 /** 404, not 403, for an exchange you can't see: no confirming it exists. */
 async function loadVisible(req: Request, res: Response): Promise<SecretSantaDoc | null> {
   const year = parseYear(req.params.year);
@@ -183,7 +196,7 @@ async function renderExchange(req: Request, exchange: SecretSantaDoc, notice: No
     isAdmin: admin,
     showAll,
     // Everything below is admin-only, and the table only with the list open.
-    roster: admin ? [...req.personas!.all(), ...req.personas!.friends()].sort(byName) : [],
+    roster: admin ? eligible(req, exchange) : [],
     unassigned: admin ? unassignedIds(exchange).map((id) => personaFor(req, id)) : [],
     assignments: showAll ? assignments : {},
     warnings: showAll ? await ruleWarnings(req, exchange, assignments) : [],
@@ -272,10 +285,11 @@ christmasRouter.post("/christmas/secret-santa/:year/participants", requireAdmin,
     const exchange = await loadVisible(req, res);
     if (!exchange) return;
     const ids = parseIds(req.body.participantIds);
-    // The picker only offers real people; a hand-posted id that isn't one
-    // would be drawn as somebody nobody can sign in as.
-    if (!ids.every((id) => req.personas!.byId(id)?.kind === "person")) {
-      res.status(400).send(await renderExchange(req, exchange, { error: "That person isn't here any more." }));
+    // Same rule as the picker, so a hand-posted id can't add somebody who
+    // can't sign in, or a friend without Christmas switched on.
+    const allowed = new Set(eligible(req, exchange).map((p) => p.personId));
+    if (!ids.every((id) => allowed.has(id))) {
+      res.status(400).send(await renderExchange(req, exchange, { error: "Only people who can sign in can take part." }));
       return;
     }
     await secretSantaRepo.setParticipants(exchange.year, ids);
